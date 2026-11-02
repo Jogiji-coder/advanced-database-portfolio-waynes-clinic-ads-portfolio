@@ -1,0 +1,21 @@
+-- E3 Doctor's day list (Q4)
+-- Variant 4: Sargable + composite index
+-- Median execution time over 7 runs: 0.025 ms
+
+SELECT a.scheduled_start, p.mrn, p.first_name, p.last_name, a.status, a.reason
+FROM appointment a JOIN patient p USING (patient_id)
+WHERE a.doctor_id = 15 AND a.scheduled_start >= TIMESTAMPTZ '2026-10-20' AND a.scheduled_start < TIMESTAMPTZ '2026-10-20' + interval '1 day'
+ORDER BY a.scheduled_start;
+
+Nested Loop  (cost=0.72..53.75 rows=4 width=49) (actual time=0.007..0.017 rows=7 loops=1)
+  Buffers: shared hit=30
+  ->  Index Scan using ix_appt_doctor_start on appointment a  (cost=0.43..20.52 rows=4 width=29) (actual time=0.004..0.006 rows=7 loops=1)
+        Index Cond: ((doctor_id = 15) AND (scheduled_start >= '2026-10-20 00:00:00-04'::timestamp with time zone) AND (scheduled_start < ('2026-10-20 00:00:00-04'::timestamp with time zone + '1 day'::interval)))
+        Buffers: shared hit=9
+  ->  Index Scan using patient_pkey on patient p  (cost=0.29..8.31 rows=1 width=28) (actual time=0.001..0.001 rows=1 loops=7)
+        Index Cond: (patient_id = a.patient_id)
+        Buffers: shared hit=21
+Planning:
+  Buffers: shared hit=16
+Planning Time: 0.132 ms
+Execution Time: 0.025 ms

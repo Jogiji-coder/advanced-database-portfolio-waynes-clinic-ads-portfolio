@@ -1,0 +1,16 @@
+-- E2a Find patient by surname prefix (Q2)
+-- Variant 3: B-tree with varchar_pattern_ops
+-- Median execution time over 7 runs: 0.431 ms
+
+SELECT mrn, first_name, last_name, date_of_birth FROM patient WHERE last_name LIKE 'Okonk%' AND date_of_birth BETWEEN '1980-01-01' AND '1984-12-31';
+
+Bitmap Heap Scan on patient  (cost=12.72..867.26 rows=47 width=28) (actual time=0.096..0.394 rows=34 loops=1)
+  Filter: (((last_name)::text ~~ 'Okonk%'::text) AND (date_of_birth >= '1980-01-01'::date) AND (date_of_birth <= '1984-12-31'::date))
+  Rows Removed by Filter: 773
+  Heap Blocks: exact=523
+  Buffers: shared hit=526
+  ->  Bitmap Index Scan on ix_patient_last_pattern  (cost=0.00..12.71 rows=842 width=0) (actual time=0.042..0.042 rows=807 loops=1)
+        Index Cond: (((last_name)::text ~>=~ 'Okonk'::text) AND ((last_name)::text ~<~ 'Okonl'::text))
+        Buffers: shared hit=3
+Planning Time: 0.049 ms
+Execution Time: 0.404 ms

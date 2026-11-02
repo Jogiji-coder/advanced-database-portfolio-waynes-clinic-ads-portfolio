@@ -1,0 +1,12 @@
+-- E2b Find patient by any part of surname, case-insensitive
+-- Variant 1: Before: B-tree cannot serve ILIKE '%...%'
+-- Median execution time over 7 runs: 19.448 ms
+
+SELECT mrn, first_name, last_name FROM patient WHERE last_name ILIKE '%konk%';
+
+Seq Scan on patient  (cost=0.00..1433.25 rows=842 width=24) (actual time=0.035..19.064 rows=807 loops=1)
+  Filter: ((last_name)::text ~~* '%konk%'::text)
+  Rows Removed by Filter: 49213
+  Buffers: shared hit=808
+Planning Time: 0.068 ms
+Execution Time: 19.111 ms

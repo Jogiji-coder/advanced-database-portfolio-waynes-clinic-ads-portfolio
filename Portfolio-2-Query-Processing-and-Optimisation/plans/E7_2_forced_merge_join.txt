@@ -1,0 +1,41 @@
+-- E7 Join algorithm choice: appointment JOIN diagnosis (590k x 590k)
+-- Variant 2: Forced merge join
+-- Session settings: SET enable_hashjoin = off
+-- Median execution time over 7 runs: 290.956 ms
+
+SELECT date_trunc('month', a.scheduled_start) AS month, count(*)
+FROM appointment a JOIN diagnosis dx ON dx.appointment_id = a.appointment_id
+WHERE dx.diagnosis_type = 'Primary'
+GROUP BY 1 ORDER BY 1;
+
+Finalize GroupAggregate  (cost=35226.66..37372.22 rows=8386 width=16) (actual time=294.951..296.938 rows=22 loops=1)
+  Group Key: (date_trunc('month'::text, a.scheduled_start))
+  Buffers: shared hit=12121
+  ->  Gather Merge  (cost=35226.66..37183.53 rows=16772 width=16) (actual time=294.941..296.917 rows=66 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=12121
+        ->  Sort  (cost=34226.64..34247.60 rows=8386 width=16) (actual time=286.700..286.703 rows=22 loops=3)
+              Sort Key: (date_trunc('month'::text, a.scheduled_start))
+              Sort Method: quicksort  Memory: 25kB
+              Buffers: shared hit=12121
+              Worker 0:  Sort Method: quicksort  Memory: 25kB
+              Worker 1:  Sort Method: quicksort  Memory: 25kB
+              ->  Partial HashAggregate  (cost=33575.31..33680.13 rows=8386 width=16) (actual time=286.586..286.669 rows=22 loops=3)
+                    Group Key: date_trunc('month'::text, a.scheduled_start)
+                    Batches: 1  Memory Usage: 409kB
+                    Buffers: shared hit=12103
+                    Worker 0:  Batches: 1  Memory Usage: 409kB
+                    Worker 1:  Batches: 1  Memory Usage: 409kB
+                    ->  Merge Join  (cost=1.31..32627.48 rows=189565 width=8) (actual time=0.993..260.078 rows=152559 loops=3)
+                          Merge Cond: (a.appointment_id = dx.appointment_id)
+                          Buffers: shared hit=12103
+                          ->  Parallel Index Scan using appointment_pkey on appointment a  (cost=0.42..18390.04 rows=246346 width=16) (actual time=0.011..56.983 rows=179331 loops=3)
+                                Buffers: shared hit=8336
+                          ->  Index Only Scan using ux_diagnosis_one_primary on diagnosis dx  (cost=0.42..11856.75 rows=454955 width=8) (actual time=0.033..59.720 rows=457677 loops=3)
+                                Heap Fetches: 267
+                                Buffers: shared hit=3767
+Planning:
+  Buffers: shared hit=14
+Planning Time: 0.266 ms
+Execution Time: 297.018 ms

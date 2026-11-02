@@ -1,0 +1,27 @@
+SET
+CREATE EXTENSION
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+psql:sql/03_recommended_indexes.sql:25: NOTICE:  index "ix_appt_doctor_start" does not exist, skipping
+DROP INDEX
+CREATE INDEX
+CREATE INDEX
+SELECT 926
+CREATE INDEX
+VACUUM
+Secondary indexes now in place on the hot tables:
+  table_name  |        index_name        | method |  size   
+--------------+--------------------------+--------+---------
+ appointment  | ix_appt_doctor_start_cov | btree  | 23 MB
+ appointment  | ix_appt_patient_start    | btree  | 18 MB
+ lab_order    | ix_lab_order_appt        | btree  | 3544 kB
+ lab_result   | ix_lab_result_critical   | btree  | 80 kB
+ lab_result   | ix_lab_result_test       | btree  | 2608 kB
+ patient      | ix_patient_last_pattern  | btree  | 432 kB
+ patient      | ix_patient_last_trgm     | gin    | 872 kB
+ patient      | ix_patient_zip           | btree  | 344 kB
+ prescription | ix_prescription_appt     | btree  | 6040 kB
+

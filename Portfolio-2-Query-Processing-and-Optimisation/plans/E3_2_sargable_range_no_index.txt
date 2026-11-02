@@ -1,0 +1,30 @@
+-- E3 Doctor's day list (Q4)
+-- Variant 2: Sargable range, no index
+-- Median execution time over 7 runs: 29.118 ms
+
+SELECT a.scheduled_start, p.mrn, p.first_name, p.last_name, a.status, a.reason
+FROM appointment a JOIN patient p USING (patient_id)
+WHERE a.doctor_id = 15 AND a.scheduled_start >= TIMESTAMPTZ '2026-10-20' AND a.scheduled_start < TIMESTAMPTZ '2026-10-20' + interval '1 day'
+ORDER BY a.scheduled_start;
+
+Sort  (cost=12414.98..12414.99 rows=4 width=49) (actual time=28.749..33.018 rows=7 loops=1)
+  Sort Key: a.scheduled_start
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=5108 read=1385
+  ->  Gather  (cost=1000.29..12414.94 rows=4 width=49) (actual time=23.623..33.005 rows=7 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=5108 read=1385
+        ->  Nested Loop  (cost=0.29..11414.54 rows=2 width=49) (actual time=19.665..22.078 rows=2 loops=3)
+              Buffers: shared hit=5108 read=1385
+              ->  Parallel Seq Scan on appointment a  (cost=0.00..11397.92 rows=2 width=29) (actual time=19.645..22.049 rows=2 loops=3)
+                    Filter: ((scheduled_start >= '2026-10-20 00:00:00-04'::timestamp with time zone) AND (doctor_id = 15) AND (scheduled_start < ('2026-10-20 00:00:00-04'::timestamp with time zone + '1 day'::interval)))
+                    Rows Removed by Filter: 197075
+                    Buffers: shared hit=5086 read=1385
+              ->  Index Scan using patient_pkey on patient p  (cost=0.29..8.31 rows=1 width=28) (actual time=0.010..0.010 rows=1 loops=7)
+                    Index Cond: (patient_id = a.patient_id)
+                    Buffers: shared hit=22
+Planning:
+  Buffers: shared hit=16
+Planning Time: 0.255 ms
+Execution Time: 33.044 ms

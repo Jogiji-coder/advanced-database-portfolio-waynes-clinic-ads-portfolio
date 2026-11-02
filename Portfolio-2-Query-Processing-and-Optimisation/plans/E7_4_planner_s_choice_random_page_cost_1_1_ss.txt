@@ -1,0 +1,43 @@
+-- E7 Join algorithm choice: appointment JOIN diagnosis (590k x 590k)
+-- Variant 4: Planner's choice, random_page_cost = 1.1 (SSD)
+-- Session settings: SET random_page_cost = 1.1
+-- Median execution time over 7 runs: 321.658 ms
+
+SELECT date_trunc('month', a.scheduled_start) AS month, count(*)
+FROM appointment a JOIN diagnosis dx ON dx.appointment_id = a.appointment_id
+WHERE dx.diagnosis_type = 'Primary'
+GROUP BY 1 ORDER BY 1;
+
+Sort  (cost=23511.27..23532.23 rows=8386 width=16) (actual time=329.274..336.076 rows=22 loops=1)
+  Sort Key: (date_trunc('month'::text, a.scheduled_start))
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=7760
+  ->  Finalize HashAggregate  (cost=22859.94..22964.76 rows=8386 width=16) (actual time=329.191..336.062 rows=22 loops=1)
+        Group Key: (date_trunc('month'::text, a.scheduled_start))
+        Batches: 1  Memory Usage: 409kB
+        Buffers: shared hit=7760
+        ->  Gather  (cost=20994.05..22776.08 rows=16772 width=16) (actual time=329.062..335.958 rows=66 loops=1)
+              Workers Planned: 2
+              Workers Launched: 2
+              Buffers: shared hit=7760
+              ->  Partial HashAggregate  (cost=19994.05..20098.88 rows=8386 width=16) (actual time=322.130..322.216 rows=22 loops=3)
+                    Group Key: date_trunc('month'::text, a.scheduled_start)
+                    Batches: 1  Memory Usage: 409kB
+                    Buffers: shared hit=7760
+                    Worker 0:  Batches: 1  Memory Usage: 409kB
+                    Worker 1:  Batches: 1  Memory Usage: 409kB
+                    ->  Parallel Hash Join  (cost=7924.21..19046.23 rows=189565 width=8) (actual time=89.958..291.977 rows=152559 loops=3)
+                          Hash Cond: (a.appointment_id = dx.appointment_id)
+                          Buffers: shared hit=7760
+                          ->  Parallel Seq Scan on appointment a  (cost=0.00..8934.46 rows=246346 width=16) (actual time=0.015..27.723 rows=197077 loops=3)
+                                Buffers: shared hit=6471
+                          ->  Parallel Hash  (cost=5554.64..5554.64 rows=189565 width=8) (actual time=87.005..87.006 rows=152559 loops=3)
+                                Buckets: 524288  Batches: 1  Memory Usage: 22048kB
+                                Buffers: shared hit=1257
+                                ->  Parallel Index Only Scan using ux_diagnosis_one_primary on diagnosis dx  (cost=0.42..5554.64 rows=189565 width=8) (actual time=0.030..27.745 rows=152559 loops=3)
+                                      Heap Fetches: 89
+                                      Buffers: shared hit=1257
+Planning:
+  Buffers: shared hit=14
+Planning Time: 0.260 ms
+Execution Time: 336.190 ms

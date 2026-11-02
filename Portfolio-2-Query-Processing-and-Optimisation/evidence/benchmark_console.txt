@@ -1,0 +1,39 @@
+== E1 Patient history (core operation, Q3)
+   Before: FK columns unindexed                     120.915 ms  ['Subquery Scan', 'Seq Scan on prescription', 'Seq Scan on appointment', 'Index Only Scan on doctor using doctor_pkey', 'Index Scan on prescription_item using uq_prescription_item_med', 'Index Scan on medication using medication_pkey', 'Subquery Scan', 'Seq Scan on lab_order', 'Seq Scan on appointment', 'Index Only Scan on doctor using doctor_pkey', 'Index Scan on lab_result using uq_lab_result_order_test', 'Index Scan on lab_test using lab_test_pkey', 'Subquery Scan', 'Seq Scan on appointment', 'Seq Scan on doctor', 'Index Scan on specialty using specialty_pkey', 'Subquery Scan', 'Seq Scan on appointment', 'Index Scan on diagnosis using uq_diagnosis_appt_code', 'Index Only Scan on doctor using doctor_pkey', 'Index Scan on icd10_code using icd10_code_pkey']
+   After: 3 FK indexes                                0.630 ms  ['Subquery Scan', 'Bitmap Heap Scan on appointment', 'Bitmap Index Scan using ix_appt_patient_start', 'Seq Scan on doctor', 'Seq Scan on specialty', 'Subquery Scan', 'Bitmap Heap Scan on appointment', 'Bitmap Index Scan using ix_appt_patient_start', 'Index Scan on diagnosis using uq_diagnosis_appt_code', 'Seq Scan on doctor', 'Index Scan on icd10_code using icd10_code_pkey', 'Subquery Scan', 'Bitmap Heap Scan on appointment', 'Bitmap Index Scan using ix_appt_patient_start', 'Index Scan on prescription using ix_prescription_appt', 'Index Only Scan on doctor using doctor_pkey', 'Index Scan on prescription_item using uq_prescription_item_med', 'Index Scan on medication using medication_pkey', 'Subquery Scan', 'Bitmap Heap Scan on appointment', 'Bitmap Index Scan using ix_appt_patient_start', 'Index Scan on lab_order using ix_lab_order_appt', 'Index Only Scan on doctor using doctor_pkey', 'Index Scan on lab_result using uq_lab_result_order_test', 'Index Scan on lab_test using lab_test_pkey']
+== E2a Find patient by surname prefix (Q2)
+   No index on last_name                              3.182 ms  ['Seq Scan on patient']
+   Default B-tree (not usable for LIKE)               3.154 ms  ['Seq Scan on patient']
+   B-tree with varchar_pattern_ops                    0.431 ms  ['Bitmap Heap Scan on patient', 'Bitmap Index Scan using ix_patient_last_pattern']
+== E2b Find patient by any part of surname, case-insensitive
+   Before: B-tree cannot serve ILIKE '%...%'         19.448 ms  ['Seq Scan on patient']
+   After: GIN trigram index                           0.768 ms  ['Bitmap Heap Scan on patient', 'Bitmap Index Scan using ix_patient_last_trgm']
+== E3 Doctor's day list (Q4)
+   Non-sargable date cast, no index                  28.700 ms  ['Seq Scan on appointment', 'Index Scan on patient using patient_pkey']
+   Sargable range, no index                          29.118 ms  ['Seq Scan on appointment', 'Index Scan on patient using patient_pkey']
+   Non-sargable + composite index                     2.936 ms  ['Bitmap Heap Scan on appointment', 'Bitmap Index Scan using ix_appt_doctor_start', 'Index Scan on patient using patient_pkey']
+   Sargable + composite index                         0.025 ms  ['Index Scan on appointment using ix_appt_doctor_start', 'Index Scan on patient using patient_pkey']
+== E4 Critical-result worklist, last 7 days (Q5)
+   No index on resulted_at                           25.208 ms  ['Seq Scan on lab_result', 'Index Scan on lab_order using lab_order_pkey', 'Index Scan on appointment using appointment_pkey', 'Index Scan on patient using patient_pkey', 'Index Scan on doctor using doctor_pkey', 'Seq Scan on lab_test']
+   BRIN on resulted_at                                2.473 ms  ['Bitmap Heap Scan on lab_result', 'Bitmap Index Scan using ix_lab_result_resulted_brin', 'Index Scan on lab_order using lab_order_pkey', 'Index Scan on appointment using appointment_pkey', 'Index Scan on patient using patient_pkey', 'Index Scan on doctor using doctor_pkey', 'Seq Scan on lab_test']
+   Partial B-tree WHERE flag = 'C'                    0.443 ms  ['Index Scan on lab_result using ix_lab_result_critical', 'Index Scan on lab_order using lab_order_pkey', 'Index Scan on appointment using appointment_pkey', 'Index Scan on patient using patient_pkey', 'Index Scan on doctor using doctor_pkey', 'Seq Scan on lab_test']
+== E5 Warfarin patients with no recent INR (Q8b)
+   Correlated COUNT(*) = 0                          462.942 ms  ['Seq Scan on prescription', 'Seq Scan on medication', 'Bitmap Heap Scan on prescription_item', 'Bitmap Index Scan using ix_item_medication', 'Index Scan on appointment using appointment_pkey', 'Bitmap Heap Scan on appointment', 'Bitmap Index Scan using ix_appt_patient_start', 'Index Scan on lab_order using ix_lab_order_appt', 'Index Scan on lab_result using uq_lab_result_order_test']
+   NOT IN (subquery)                                218.156 ms  ['Seq Scan on appointment', 'Seq Scan on lab_order', 'Bitmap Heap Scan on lab_result', 'Bitmap Index Scan using ix_lab_result_test', 'Index Scan on appointment using appointment_pkey', 'Seq Scan on prescription', 'Seq Scan on medication', 'Bitmap Heap Scan on prescription_item', 'Bitmap Index Scan using ix_item_medication']
+   NOT EXISTS (anti-join)                           101.965 ms  ['Seq Scan on lab_order', 'Bitmap Heap Scan on lab_result', 'Bitmap Index Scan using ix_lab_result_test', 'Index Scan on appointment using appointment_pkey', 'Seq Scan on prescription', 'Seq Scan on medication', 'Bitmap Heap Scan on prescription_item', 'Bitmap Index Scan using ix_item_medication', 'Index Scan on appointment using appointment_pkey']
+== E6 Top-3 diagnoses per department, 2026 (Q6)
+   Live aggregation over 590k diagnoses             222.480 ms  ['Subquery Scan', 'Seq Scan on diagnosis', 'Seq Scan on appointment', 'Seq Scan on doctor', 'Seq Scan on department']
+   Query the materialised view                        0.413 ms  ['Subquery Scan', 'Seq Scan on mv_dept_dx_month']
+== E7 Join algorithm choice: appointment JOIN diagnosis (590k x 590k)
+   Planner's choice                                 317.138 ms  ['Seq Scan on appointment', 'Seq Scan on diagnosis']
+   Forced merge join                                290.956 ms  ['Index Scan on appointment using appointment_pkey', 'Index Only Scan on diagnosis using ux_diagnosis_one_primary']
+   Forced nested loop                               500.801 ms  ['Seq Scan on diagnosis', 'Index Scan on appointment using appointment_pkey']
+   Planner's choice, random_page_cost = 1.1 (SSD)    321.658 ms  ['Seq Scan on appointment', 'Index Only Scan on diagnosis using ux_diagnosis_one_primary']
+== E8 Status counts for one doctor, 2026
+   Composite index, heap lookups                      1.844 ms  ['Bitmap Heap Scan on appointment', 'Bitmap Index Scan using ix_appt_doctor_start']
+   Covering index INCLUDE (status)                    0.356 ms  ['Index Only Scan on appointment using ix_appt_doctor_start_cov']
+== E9 write cost
+   Primary key only                       191.2 ms  indexes 2.3 MB
+   + 3 B-tree indexes                     648.7 ms  indexes 13.9 MB
+   + 3 B-tree + 2 GiST exclusion         5484.3 ms  indexes 28.0 MB
+done

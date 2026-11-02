@@ -1,0 +1,87 @@
+-- E5 Warfarin patients with no recent INR (Q8b)
+-- Variant 2: NOT IN (subquery)
+-- Median execution time over 7 runs: 218.156 ms
+
+SELECT count(DISTINCT a.patient_id)
+FROM prescription pr
+JOIN prescription_item pi ON pi.prescription_id = pr.prescription_id
+JOIN medication m ON m.medication_id = pi.medication_id AND m.generic_name = 'Warfarin'
+JOIN appointment a ON a.appointment_id = pr.appointment_id
+WHERE pr.issued_at >= TIMESTAMPTZ '2026-10-28' - interval '180 days'
+  AND a.patient_id NOT IN (SELECT a2.patient_id FROM lab_result r
+       JOIN lab_order lo ON lo.lab_order_id = r.lab_order_id
+       JOIN appointment a2 ON a2.appointment_id = lo.appointment_id
+       WHERE r.test_code = 'INR' AND r.resulted_at >= TIMESTAMPTZ '2026-10-28' - interval '90 days');
+
+Aggregate  (cost=32176.35..32176.36 rows=1 width=8) (actual time=216.173..220.635 rows=1 loops=1)
+  Buffers: shared hit=77101 read=2456
+  ->  Gather Merge  (cost=31800.41..32168.45 rows=3160 width=4) (actual time=214.846..220.264 rows=5817 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=77101 read=2456
+        ->  Sort  (cost=30800.39..30803.68 rows=1317 width=4) (actual time=209.897..210.004 rows=1939 loops=3)
+              Sort Key: a.patient_id
+              Sort Method: quicksort  Memory: 49kB
+              Buffers: shared hit=77101 read=2456
+              Worker 0:  Sort Method: quicksort  Memory: 97kB
+              Worker 1:  Sort Method: quicksort  Memory: 49kB
+              ->  Parallel Hash Join  (cost=20712.17..30732.15 rows=1317 width=4) (actual time=180.218..209.567 rows=1939 loops=3)
+                    Hash Cond: (a.appointment_id = pr.appointment_id)
+                    Buffers: shared hit=77085 read=2456
+                    ->  Parallel Seq Scan on appointment a  (cost=9851.16..19401.49 rows=123173 width=12) (actual time=65.210..118.558 rows=182474 loops=3)
+                          Filter: (NOT (hashed SubPlan 1))
+                          Rows Removed by Filter: 14603
+                          Buffers: shared hit=60314 read=2456
+                          SubPlan 1
+                            ->  Nested Loop  (cost=4107.59..9842.46 rows=3480 width=4) (actual time=17.220..64.247 rows=3482 loops=3)
+                                  Buffers: shared hit=56299
+                                  ->  Hash Join  (cost=4107.17..7600.49 rows=3480 width=8) (actual time=17.201..56.770 rows=3482 loops=3)
+                                        Hash Cond: (lo.lab_order_id = r.lab_order_id)
+                                        Buffers: shared hit=14513
+                                        ->  Seq Scan on lab_order lo  (cost=0.00..3072.00 rows=160500 width=16) (actual time=0.012..14.590 rows=160500 loops=3)
+                                              Buffers: shared hit=4401
+                                        ->  Hash  (cost=4063.67..4063.67 rows=3480 width=8) (actual time=17.161..17.163 rows=3482 loops=3)
+                                              Buckets: 4096  Batches: 1  Memory Usage: 169kB
+                                              Buffers: shared hit=10112
+                                              ->  Bitmap Heap Scan on lab_result r  (cost=274.40..4063.67 rows=3480 width=8) (actual time=1.194..16.721 rows=3482 loops=3)
+                                                    Recheck Cond: ((test_code)::text = 'INR'::text)
+                                                    Filter: (resulted_at >= ('2026-10-28 00:00:00-04'::timestamp with time zone - '90 days'::interval))
+                                                    Rows Removed by Filter: 21665
+                                                    Heap Blocks: exact=3348
+                                                    Buffers: shared hit=10112
+                                                    ->  Bitmap Index Scan on ix_lab_result_test  (cost=0.00..273.53 rows=25215 width=0) (actual time=0.764..0.765 rows=25147 loops=3)
+                                                          Index Cond: ((test_code)::text = 'INR'::text)
+                                                          Buffers: shared hit=68
+                                  ->  Index Scan using appointment_pkey on appointment a2  (cost=0.42..0.64 rows=1 width=12) (actual time=0.002..0.002 rows=1 loops=10446)
+                                        Index Cond: (appointment_id = lo.appointment_id)
+                                        Buffers: shared hit=41786
+                    ->  Parallel Hash  (cost=10814.54..10814.54 rows=3718 width=8) (actual time=59.680..59.684 rows=2127 loops=3)
+                          Buckets: 8192  Batches: 1  Memory Usage: 384kB
+                          Buffers: shared hit=16709
+                          ->  Hash Join  (cost=5932.37..10814.54 rows=3718 width=8) (actual time=43.175..54.959 rows=2127 loops=3)
+                                Hash Cond: (pr.prescription_id = pi.prescription_id)
+                                Buffers: shared hit=16709
+                                ->  Parallel Seq Scan on prescription pr  (cost=0.00..4684.10 rows=42903 width=16) (actual time=14.353..22.523 rows=24453 loops=3)
+                                      Filter: (issued_at >= ('2026-10-28 00:00:00-04'::timestamp with time zone - '180 days'::interval))
+                                      Rows Removed by Filter: 66936
+                                      Buffers: shared hit=2265
+                                ->  Hash  (cost=5635.39..5635.39 rows=23758 width=8) (actual time=28.706..28.708 rows=23793 loops=3)
+                                      Buckets: 32768  Batches: 1  Memory Usage: 1186kB
+                                      Buffers: shared hit=14444
+                                      ->  Nested Loop  (cost=264.55..5635.39 rows=23758 width=8) (actual time=1.769..21.129 rows=23793 loops=3)
+                                            Buffers: shared hit=14444
+                                            ->  Seq Scan on medication m  (cost=0.00..1.29 rows=1 width=4) (actual time=0.026..0.030 rows=1 loops=3)
+                                                  Filter: ((generic_name)::text = 'Warfarin'::text)
+                                                  Rows Removed by Filter: 22
+                                                  Buffers: shared hit=3
+                                            ->  Bitmap Heap Scan on prescription_item pi  (cost=264.55..5396.52 rows=23758 width=12) (actual time=1.739..17.355 rows=23793 loops=3)
+                                                  Recheck Cond: (medication_id = m.medication_id)
+                                                  Heap Blocks: exact=4792
+                                                  Buffers: shared hit=14441
+                                                  ->  Bitmap Index Scan on ix_item_medication  (cost=0.00..258.61 rows=23758 width=0) (actual time=1.055..1.055 rows=23793 loops=3)
+                                                        Index Cond: (medication_id = m.medication_id)
+                                                        Buffers: shared hit=65
+Planning:
+  Buffers: shared hit=65
+Planning Time: 0.821 ms
+Execution Time: 220.716 ms

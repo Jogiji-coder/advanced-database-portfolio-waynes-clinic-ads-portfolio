@@ -1,0 +1,33 @@
+-- E6 Top-3 diagnoses per department, 2026 (Q6)
+-- Variant 2: Query the materialised view
+-- Median execution time over 7 runs: 0.413 ms
+
+WITH counts AS (
+  SELECT department, icd10_code, sum(cases) AS cases
+  FROM mv_dept_dx_month
+  WHERE month >= '2026-01-01' AND month < '2027-01-01'
+  GROUP BY department, icd10_code)
+SELECT * FROM (SELECT *, rank() OVER (PARTITION BY department ORDER BY cases DESC) AS rnk FROM counts) r
+WHERE rnk <= 3;
+
+WindowAgg  (cost=29.21..31.05 rows=92 width=61) (actual time=0.305..0.338 rows=24 loops=1)
+  Run Condition: (rank() OVER (?) <= 3)
+  Buffers: shared hit=8
+  ->  Sort  (cost=29.21..29.44 rows=92 width=53) (actual time=0.301..0.306 rows=43 loops=1)
+        Sort Key: counts.department, counts.cases DESC
+        Sort Method: quicksort  Memory: 27kB
+        Buffers: shared hit=8
+        ->  Subquery Scan on counts  (cost=25.05..26.21 rows=92 width=53) (actual time=0.245..0.265 rows=43 loops=1)
+              Buffers: shared hit=8
+              ->  HashAggregate  (cost=25.05..26.21 rows=92 width=53) (actual time=0.244..0.258 rows=43 loops=1)
+                    Group Key: mv_dept_dx_month.department, mv_dept_dx_month.icd10_code
+                    Batches: 1  Memory Usage: 24kB
+                    Buffers: shared hit=8
+                    ->  Seq Scan on mv_dept_dx_month  (cost=0.00..21.89 rows=422 width=29) (actual time=0.005..0.105 rows=422 loops=1)
+                          Filter: ((month >= '2026-01-01'::date) AND (month < '2027-01-01'::date))
+                          Rows Removed by Filter: 504
+                          Buffers: shared hit=8
+Planning:
+  Buffers: shared hit=2
+Planning Time: 0.115 ms
+Execution Time: 0.397 ms

@@ -1,0 +1,12 @@
+-- E2a Find patient by surname prefix (Q2)
+-- Variant 1: No index on last_name
+-- Median execution time over 7 runs: 3.182 ms
+
+SELECT mrn, first_name, last_name, date_of_birth FROM patient WHERE last_name LIKE 'Okonk%' AND date_of_birth BETWEEN '1980-01-01' AND '1984-12-31';
+
+Seq Scan on patient  (cost=0.00..1683.35 rows=47 width=28) (actual time=0.039..3.152 rows=34 loops=1)
+  Filter: (((last_name)::text ~~ 'Okonk%'::text) AND (date_of_birth >= '1980-01-01'::date) AND (date_of_birth <= '1984-12-31'::date))
+  Rows Removed by Filter: 49986
+  Buffers: shared hit=808
+Planning Time: 0.122 ms
+Execution Time: 3.162 ms

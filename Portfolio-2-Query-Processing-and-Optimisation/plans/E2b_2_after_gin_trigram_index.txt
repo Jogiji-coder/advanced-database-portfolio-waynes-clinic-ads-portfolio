@@ -1,0 +1,17 @@
+-- E2b Find patient by any part of surname, case-insensitive
+-- Variant 2: After: GIN trigram index
+-- Median execution time over 7 runs: 0.768 ms
+
+SELECT mrn, first_name, last_name FROM patient WHERE last_name ILIKE '%konk%';
+
+Bitmap Heap Scan on patient  (cost=25.89..876.22 rows=842 width=24) (actual time=0.128..0.773 rows=807 loops=1)
+  Recheck Cond: ((last_name)::text ~~* '%konk%'::text)
+  Heap Blocks: exact=523
+  Buffers: shared hit=528
+  ->  Bitmap Index Scan on ix_patient_last_trgm  (cost=0.00..25.68 rows=842 width=0) (actual time=0.078..0.078 rows=807 loops=1)
+        Index Cond: ((last_name)::text ~~* '%konk%'::text)
+        Buffers: shared hit=5
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.052 ms
+Execution Time: 0.816 ms

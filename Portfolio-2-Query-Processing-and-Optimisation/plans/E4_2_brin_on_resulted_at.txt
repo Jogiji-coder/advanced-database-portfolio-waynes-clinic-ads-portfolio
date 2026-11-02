@@ -1,0 +1,60 @@
+-- E4 Critical-result worklist, last 7 days (Q5)
+-- Variant 2: BRIN on resulted_at
+-- Median execution time over 7 runs: 2.473 ms
+
+SELECT r.resulted_at, p.mrn, p.last_name, t.test_name, r.result_value, d.last_name AS doctor
+FROM lab_result r
+JOIN lab_order lo  ON lo.lab_order_id = r.lab_order_id
+JOIN appointment a ON a.appointment_id = lo.appointment_id
+JOIN patient p     ON p.patient_id = a.patient_id
+JOIN doctor d      ON d.doctor_id = a.doctor_id
+JOIN lab_test t    ON t.test_code = r.test_code
+WHERE r.abnormal_flag = 'C' AND r.resulted_at >= TIMESTAMPTZ '2026-10-28' - interval '7 days'
+ORDER BY r.resulted_at DESC;
+
+Sort  (cost=3796.17..3796.25 rows=31 width=55) (actual time=2.586..2.590 rows=52 loops=1)
+  Sort Key: r.resulted_at DESC
+  Sort Method: quicksort  Memory: 29kB
+  Buffers: shared hit=763
+  ->  Nested Loop  (cost=13.31..3795.40 rows=31 width=55) (actual time=1.172..2.566 rows=52 loops=1)
+        Join Filter: ((r.test_code)::text = (t.test_code)::text)
+        Rows Removed by Join Filter: 728
+        Buffers: shared hit=763
+        ->  Nested Loop  (cost=13.31..3786.29 rows=31 width=41) (actual time=1.155..2.443 rows=52 loops=1)
+              Buffers: shared hit=762
+              ->  Nested Loop  (cost=13.16..3781.25 rows=31 width=39) (actual time=1.130..2.362 rows=52 loops=1)
+                    Buffers: shared hit=658
+                    ->  Nested Loop  (cost=12.87..3771.52 rows=31 width=25) (actual time=1.125..2.263 rows=52 loops=1)
+                          Buffers: shared hit=502
+                          ->  Nested Loop  (cost=12.45..3751.55 rows=31 width=25) (actual time=1.120..2.172 rows=52 loops=1)
+                                Buffers: shared hit=294
+                                ->  Bitmap Heap Scan on lab_result r  (cost=12.03..3493.99 rows=31 width=25) (actual time=1.110..2.076 rows=52 loops=1)
+                                      Recheck Cond: (resulted_at >= ('2026-10-28 00:00:00-04'::timestamp with time zone - '7 days'::interval))
+                                      Rows Removed by Index Recheck: 5166
+                                      Filter: (abnormal_flag = 'C'::bpchar)
+                                      Rows Removed by Filter: 4833
+                                      Heap Blocks: lossy=84
+                                      Buffers: shared hit=86
+                                      ->  Bitmap Index Scan on ix_lab_result_resulted_brin  (cost=0.00..12.02 rows=7655 width=0) (actual time=0.020..0.020 rows=840 loops=1)
+                                            Index Cond: (resulted_at >= ('2026-10-28 00:00:00-04'::timestamp with time zone - '7 days'::interval))
+                                            Buffers: shared hit=2
+                                ->  Index Scan using lab_order_pkey on lab_order lo  (cost=0.42..8.31 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=52)
+                                      Index Cond: (lab_order_id = r.lab_order_id)
+                                      Buffers: shared hit=208
+                          ->  Index Scan using appointment_pkey on appointment a  (cost=0.42..0.64 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=52)
+                                Index Cond: (appointment_id = lo.appointment_id)
+                                Buffers: shared hit=208
+                    ->  Index Scan using patient_pkey on patient p  (cost=0.29..0.31 rows=1 width=22) (actual time=0.001..0.001 rows=1 loops=52)
+                          Index Cond: (patient_id = a.patient_id)
+                          Buffers: shared hit=156
+              ->  Index Scan using doctor_pkey on doctor d  (cost=0.14..0.16 rows=1 width=10) (actual time=0.001..0.001 rows=1 loops=52)
+                    Index Cond: (doctor_id = a.doctor_id)
+                    Buffers: shared hit=104
+        ->  Materialize  (cost=0.00..1.27 rows=18 width=22) (actual time=0.000..0.001 rows=15 loops=52)
+              Buffers: shared hit=1
+              ->  Seq Scan on lab_test t  (cost=0.00..1.18 rows=18 width=22) (actual time=0.004..0.006 rows=15 loops=1)
+                    Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=59
+Planning Time: 0.794 ms
+Execution Time: 2.622 ms

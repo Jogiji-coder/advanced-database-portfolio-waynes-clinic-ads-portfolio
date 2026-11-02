@@ -1,0 +1,205 @@
+SET
+SET
+Parameters: patient_id = 83  mrn = WCB0000080  doctor_id = 15  day = 2026-10-20
+
+Q1  RECEPTION - Which slots are still free for this doctor on this day? (booking)
+ free_slot 
+-----------
+ 09:00
+ 10:00
+ 11:00
+ 12:00
+ 15:30
+ 16:00
+ 16:30
+(7 rows)
+
+
+Q2  RECEPTION - Find a patient by surname (prefix search)
+    mrn     | first_name  | last_name | date_of_birth |    phone     
+------------+-------------+-----------+---------------+--------------
+ WCB0030516 | Amara       | Okonkwo   | 1982-09-18    | 443-555-5790
+ WCB0014906 | Anthony     | Okonkwo   | 1983-08-16    | 410-555-6943
+ WCB0041906 | Anthony     | Okonkwo   | 1981-02-04    | 443-555-9437
+ WCB0020303 | Betty       | Okonkwo   | 1983-07-13    | 443-555-4622
+ WCB0022132 | Betty       | Okonkwo   | 1983-12-12    | 667-555-5726
+ WCB0002902 | Carlos      | Okonkwo   | 1983-11-20    | 443-555-6041
+ WCB0003158 | Charles     | Okonkwo   | 1981-02-04    | 443-555-0972
+ WCB0015385 | Christopher | Okonkwo   | 1982-01-03    | 410-555-3322
+ WCB0013746 | Daniel      | Okonkwo   | 1983-04-26    | 667-555-4828
+ WCB0001854 | Daniel      | Okonkwo   | 1984-10-25    | 410-555-5606
+(10 rows)
+
+
+Q3  DOCTOR - Full history of one patient, newest first (core operation)
+    event_time    |  event_type  | appointment_id |                              detail                              
+------------------+--------------+----------------+------------------------------------------------------------------
+ 2026-10-24 18:41 | Lab result   |         536093 | C-reactive protein: 0.4 mg/L
+ 2026-10-24 16:35 | Lab result   |         536093 | Thyroid stimulating hormone: 4.6 mIU/L  [HIGH]
+ 2026-10-24 14:17 | Lab result   |         536093 | Platelet count: 435 10^9/L
+ 2026-10-24 13:00 | Lab result   |         536093 | HDL cholesterol: 28 mg/dL  [LOW]
+ 2026-10-23 16:25 | Prescription |         536093 | Nitrofurantoin 100 mg — 1 unit, Twice daily for 90 days (qty 10)
+ 2026-10-23 16:25 | Prescription |         536093 | Azithromycin 250 mg — 1 unit, Twice daily for 90 days (qty 10)
+ 2026-10-23 16:20 | Diagnosis    |         536093 | E78.5 Hyperlipidemia, unspecified (Primary)
+ 2026-10-23 16:00 | Appointment  |         536093 | Completed — Internal Medicine — Medication review
+ 2026-08-18 16:00 | Appointment  |         481837 | Cancelled — Pediatrics — Ear pain
+ 2026-07-21 16:00 | Appointment  |         459294 | NoShow — Family Medicine — Cough and cold
+ 2026-07-10 15:50 | Diagnosis    |         451220 | R51.9 Headache, unspecified (Primary)
+ 2026-07-10 15:30 | Appointment  |         451220 | Completed — Neurology — Numbness
+ 2026-06-19 12:00 | Appointment  |         433828 | NoShow — Cardiology — Shortness of breath
+ 2026-06-19 11:16 | Lab result   |         432285 | Potassium: 4.1 mmol/L
+ 2026-06-19 09:11 | Lab result   |         432285 | Total cholesterol: 159 mg/dL
+(15 rows)
+
+
+Q4  DOCTOR - My appointment list for one day
+ start_time |    mrn     |      patient       |  status   |        reason        
+------------+------------+--------------------+-----------+----------------------
+ 09:30      | WCB0017991 | Sarah Taylor       | Completed | Fatigue
+ 10:30      | WCB0029024 | David Walker       | Completed | Blood pressure check
+ 11:30      | WCB0033629 | Lucia Lopez        | Completed | Medication review
+ 13:30      | WCB0018659 | William Rivera     | Completed | Annual physical
+ 14:00      | WCB0038181 | Christopher Mensah | Completed | Cough and cold
+ 14:30      | WCB0029907 | Christopher Scott  | Completed | Annual physical
+ 15:00      | WCB0018943 | Lisa Adams         | Completed | Back pain
+(7 rows)
+
+
+Q5  LABORATORY - Critical results filed in the last 7 days (call-back worklist)
+  resulted   |    mrn     |      patient      |           test_name           | value | unit | requested_by 
+-------------+------------+-------------------+-------------------------------+-------+------+--------------
+ 10-28 19:09 | WCB0013656 | Jennifer Taylor   | Troponin I (high-sensitivity) |    52 | ng/L | Dr Raman
+ 10-28 16:58 | WCB0028022 | Mark Torres       | Troponin I (high-sensitivity) |    57 | ng/L | Dr Adams
+ 10-28 13:41 | WCB0009591 | Robert Allen      | Troponin I (high-sensitivity) |    58 | ng/L | Dr Turner
+ 10-28 10:12 | WCB0030591 | Lucia Diallo      | Troponin I (high-sensitivity) |    59 | ng/L | Dr Reinhardt
+ 10-28 09:35 | WCB0014689 | Linda Nelson      | Troponin I (high-sensitivity) |    54 | ng/L | Dr Owens
+ 10-28 07:50 | WCB0016008 | Chidi Sanchez     | Troponin I (high-sensitivity) |    56 | ng/L | Dr Walsh
+ 10-28 07:01 | WCB0021745 | Susan Johnson     | Troponin I (high-sensitivity) |    58 | ng/L | Dr Lopez
+ 10-27 17:48 | WCB0034122 | Thomas Rodriguez  | Troponin I (high-sensitivity) |    52 | ng/L | Dr Silva
+ 10-27 16:32 | WCB0009657 | Aaliyah Hernandez | Troponin I (high-sensitivity) |    55 | ng/L | Dr Adams
+ 10-27 14:51 | WCB0001111 | Susan Green       | Troponin I (high-sensitivity) |    57 | ng/L | Dr Adams
+ 10-27 11:53 | WCB0002523 | Aaliyah Johnson   | Troponin I (high-sensitivity) |    57 | ng/L | Dr Diaz
+ 10-24 20:43 | WCB0013377 | Ashley Hill       | Troponin I (high-sensitivity) |    57 | ng/L | Dr Owens
+ 10-24 18:21 | WCB0020466 | Priya Hill        | Troponin I (high-sensitivity) |    58 | ng/L | Dr Morrison
+ 10-24 16:31 | WCB0011433 | Thomas Garcia     | Troponin I (high-sensitivity) |    52 | ng/L | Dr Baker
+ 10-24 16:31 | WCB0044605 | Elizabeth Harris  | Troponin I (high-sensitivity) |    54 | ng/L | Dr Patel
+(15 rows)
+
+
+Q6  MANAGEMENT - Top 3 primary diagnoses per department in 2026 (window function)
+            department             | rnk | icd10_code |               description                | cases | pct_of_dept 
+-----------------------------------+-----+------------+------------------------------------------+-------+-------------
+ Cardiology                        |   1 | I48.91     | Unspecified atrial fibrillation          |  4680 |        21.0
+ Cardiology                        |   2 | E78.5      | Hyperlipidemia, unspecified              |  4416 |        19.8
+ Cardiology                        |   3 | R07.9      | Chest pain, unspecified                  |  4402 |        19.8
+ Dermatology                       |   1 | L20.9      | Atopic dermatitis, unspecified           | 11733 |       100.0
+ Emergency Medicine                |   1 | J06.9      | Acute upper respiratory infection, unspe |  7087 |        16.9
+ Emergency Medicine                |   2 | R07.9      | Chest pain, unspecified                  |  7059 |        16.8
+ Emergency Medicine                |   3 | U07.1      | COVID-19                                 |  7055 |        16.8
+ Endocrinology                     |   1 | E66.9      | Obesity, unspecified                     |  2089 |        25.5
+ Endocrinology                     |   2 | E03.9      | Hypothyroidism, unspecified              |  2050 |        25.0
+ Endocrinology                     |   3 | E11.9      | Type 2 diabetes mellitus without complic |  2027 |        24.8
+ General Medicine                  |   1 | Z00.00     | Encounter for general adult medical exam |  4973 |         8.5
+ General Medicine                  |   2 | E11.9      | Type 2 diabetes mellitus without complic |  4935 |         8.4
+ General Medicine                  |   3 | K21.9      | Gastro-esophageal reflux disease without |  4934 |         8.4
+ Neurology                         |   1 | R51.9      | Headache, unspecified                    |  5948 |        50.1
+ Neurology                         |   2 | G43.909    | Migraine, unspecified, not intractable,  |  5933 |        49.9
+ Obstetrics and Gynecology         |   1 | Z00.00     | Encounter for general adult medical exam |  5560 |        34.0
+ Obstetrics and Gynecology         |   2 | D64.9      | Anemia, unspecified                      |  5440 |        33.2
+ Obstetrics and Gynecology         |   3 | N39.0      | Urinary tract infection, site not specif |  5372 |        32.8
+ Orthopedics                       |   1 | M54.50     | Low back pain, unspecified               |  8245 |        50.3
+ Orthopedics                       |   2 | S93.401A   | Sprain of unspecified ligament of right  |  8142 |        49.7
+ Pathology and Laboratory Medicine |   1 | D64.9      | Anemia, unspecified                      |   107 |       100.0
+ Pediatrics                        |   1 | L20.9      | Atopic dermatitis, unspecified           |  3168 |        16.9
+ Pediatrics                        |   2 | B34.9      | Viral infection, unspecified             |  3157 |        16.8
+ Pediatrics                        |   3 | Z23        | Encounter for immunization               |  3120 |        16.6
+(24 rows)
+
+
+Q7  OPERATIONS - Doctors with the highest no-show rates in 2026 (FILTER + HAVING)
+ staff_number |      doctor      |    department    | due_to_attend | no_shows | no_show_pct 
+--------------+------------------+------------------+---------------+----------+-------------
+ WCB-D0118    | Dr Hana Diaz     | Endocrinology    |          1132 |      144 |       12.72
+ WCB-D0110    | Dr Elena Patel   | Dermatology      |          1131 |      141 |       12.47
+ WCB-D0185    | Dr Riley Owens   | General Medicine |          1096 |      135 |       12.32
+ WCB-D0046    | Dr Jamie Ibekwe  | Pediatrics       |          1148 |      141 |       12.28
+ WCB-D0079    | Dr Mateo Chen    | General Medicine |          1147 |      140 |       12.21
+ WCB-D0083    | Dr Morgan Hughes | General Medicine |          1121 |      136 |       12.13
+ WCB-D0134    | Dr Ngozi Adams   | General Medicine |          1166 |      141 |       12.09
+ WCB-D0054    | Dr Ngozi Reyes   | Pediatrics       |          1151 |      138 |       11.99
+ WCB-D0130    | Dr Elena Reyes   | General Medicine |          1095 |      131 |       11.96
+ WCB-D0145    | Dr Riley Murphy  | Cardiology       |          1139 |      136 |       11.94
+(10 rows)
+
+
+Q8  PATIENT SAFETY - Patients prescribed warfarin with NO INR test in the last 90 days (anti-join)
+    mrn     |      patient      | last_warfarin_rx 
+------------+-------------------+------------------
+ WCB0004407 | Jessica Wilson    | 2026-10-27
+ WCB0004730 | Jennifer King     | 2026-10-27
+ WCB0002549 | Amara Thompson    | 2026-10-27
+ WCB0000957 | Mohammed Robinson | 2026-10-27
+ WCB0001323 | Aaliyah Torres    | 2026-10-27
+ WCB0001493 | Nancy Fitzgerald  | 2026-10-27
+ WCB0001485 | Anthony Thomas    | 2026-10-27
+ WCB0001979 | David Martin      | 2026-10-27
+ WCB0000920 | Patricia Torres   | 2026-10-27
+ WCB0005171 | Sandra Hall       | 2026-10-27
+(10 rows)
+
+Q8b How many such patients in total?
+ patients_needing_inr 
+----------------------
+                 5450
+(1 row)
+
+
+Q9  RECALL - Diabetic patients whose most recent visit was over 6 months ago (DISTINCT ON)
+    mrn     |    patient    | last_visit | days_since 
+------------+---------------+------------+------------
+ WCB0044583 | Elizabeth Lee | 2025-02-12 |        623
+ WCB0022324 | Mary Hill     | 2025-03-25 |        582
+ WCB0019555 | Thomas Dubois | 2025-04-07 |        569
+ WCB0042486 | Charles Adams | 2025-05-07 |        539
+ WCB0004822 | Betty Nwosu   | 2025-05-13 |        533
+ WCB0046628 | Betty Wright  | 2025-05-16 |        530
+ WCB0048321 | Michael Young | 2025-05-29 |        517
+ WCB0034452 | Mary Diallo   | 2025-06-02 |        513
+ WCB0039663 | Patricia Lee  | 2025-06-04 |        511
+ WCB0029064 | Lucia Adeyemi | 2025-06-11 |        504
+(10 rows)
+
+
+Q10 MANAGEMENT - Monthly completed visits by department, 2026 (dashboard source)
+  month  | gen_med | cardio | peds | emergency | all_departments 
+---------+---------+--------+------+-----------+-----------------
+ 2026-01 |    6025 |   2286 | 1896 |      4296 |           21202
+ 2026-02 |    5584 |   2048 | 1747 |      3972 |           19392
+ 2026-03 |    6041 |   2246 | 1914 |      4367 |           21210
+ 2026-04 |    5977 |   2313 | 1986 |      4308 |           21315
+ 2026-05 |    5722 |   2154 | 1809 |      4175 |           20142
+ 2026-06 |    5990 |   2311 | 1957 |      4331 |           21274
+ 2026-07 |    6287 |   2361 | 2012 |      4510 |           22099
+ 2026-08 |    5663 |   2214 | 1827 |      4042 |           20116
+ 2026-09 |    5968 |   2319 | 1949 |      4294 |           21111
+ 2026-10 |    5195 |   2016 | 1645 |      3706 |           18269
+(10 rows)
+
+
+Q11 PHARMACY - 30-day demand vs stock on hand (reorder report)
+    generic_name     |   strength   | stock_on_hand | qty_prescribed_30d | days_of_cover |    action    
+---------------------+--------------+---------------+--------------------+---------------+--------------
+ Sertraline          | 50 mg        |         19453 |              37266 |          15.7 | REORDER NOW
+ Levothyroxine       | 50 mcg       |         19423 |              32992 |          17.7 | REORDER NOW
+ Metformin           | 500 mg       |         23494 |              37002 |          19.0 | REORDER NOW
+ Losartan            | 50 mg        |         23115 |              35101 |          19.8 | REORDER NOW
+ Ibuprofen           | 400 mg       |         23676 |              35624 |          19.9 | REORDER NOW
+ Oxycodone           | 5 mg         |         31521 |              34718 |          27.2 | REORDER NOW
+ Sumatriptan         | 50 mg        |         36102 |              37583 |          28.8 | REORDER NOW
+ Acetaminophen       | 500 mg       |         39705 |              35395 |          33.7 | Reorder soon
+ Prednisone          | 20 mg        |         44072 |              38339 |          34.5 | Reorder soon
+ Insulin Glargine    | 100 units/mL |         41892 |              36139 |          34.8 | Reorder soon
+ Hydrocortisone      | 1%           |         44362 |              35910 |          37.1 | Reorder soon
+ Hydrochlorothiazide | 12.5 mg      |         49486 |              34687 |          42.8 | Reorder soon
+(12 rows)
+

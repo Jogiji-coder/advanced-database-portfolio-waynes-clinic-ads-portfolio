@@ -1,0 +1,19 @@
+-- E8 Status counts for one doctor, 2026
+-- Variant 2: Covering index INCLUDE (status)
+-- Median execution time over 7 runs: 0.356 ms
+
+SELECT status, count(*)
+FROM appointment
+WHERE doctor_id = 15 AND scheduled_start >= '2026-01-01' AND scheduled_start < '2027-01-01'
+GROUP BY status;
+
+HashAggregate  (cost=76.13..76.17 rows=4 width=12) (actual time=0.311..0.312 rows=4 loops=1)
+  Group Key: status
+  Batches: 1  Memory Usage: 24kB
+  Buffers: shared hit=11
+  ->  Index Only Scan using ix_appt_doctor_start_cov on appointment  (cost=0.42..68.91 rows=1444 width=4) (actual time=0.015..0.159 rows=1437 loops=1)
+        Index Cond: ((doctor_id = 15) AND (scheduled_start >= '2026-01-01 00:00:00-05'::timestamp with time zone) AND (scheduled_start < '2027-01-01 00:00:00-05'::timestamp with time zone))
+        Heap Fetches: 0
+        Buffers: shared hit=11
+Planning Time: 0.086 ms
+Execution Time: 0.328 ms

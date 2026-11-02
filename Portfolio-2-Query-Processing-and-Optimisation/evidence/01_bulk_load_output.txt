@@ -1,0 +1,90 @@
+Timing is on.
+SET
+Time: 0.304 ms
+SET
+Time: 0.240 ms
+SET
+Time: 0.093 ms
+ setseed 
+---------
+ 
+(1 row)
+
+Time: 0.391 ms
+ANALYZE
+Time: 86.596 ms
+Time: 0.773 ms
+INSERT 0 188
+Time: 6.207 ms
+INSERT 0 1880
+Time: 26.625 ms
+INSERT 0 50000
+Time: 998.099 ms
+Time: 0.763 ms
+INSERT 0 2489
+Time: 38.477 ms
+CREATE TABLE
+Time: 1.543 ms
+INSERT 0 9
+Time: 0.310 ms
+INSERT 0 591190
+Time: 55300.868 ms (00:55.301)
+ANALYZE
+Time: 123.192 ms
+CREATE TABLE
+Time: 1.679 ms
+INSERT 0 10
+Time: 0.447 ms
+INSERT 0 1
+Time: 0.640 ms
+INSERT 0 457646
+Time: 10507.012 ms (00:10.507)
+INSERT 0 132377
+Time: 3189.826 ms (00:03.190)
+ANALYZE
+Time: 73.537 ms
+INSERT 0 274142
+Time: 3782.745 ms (00:03.783)
+ANALYZE
+Time: 57.353 ms
+INSERT 0 546398
+Time: 21895.127 ms (00:21.895)
+ANALYZE
+Time: 98.623 ms
+INSERT 0 160481
+Time: 2239.949 ms (00:02.240)
+ANALYZE
+Time: 52.580 ms
+CREATE TABLE
+Time: 2.329 ms
+INSERT 0 16
+Time: 0.538 ms
+INSERT 0 401696
+Time: 10067.194 ms (00:10.067)
+UPDATE 23
+Time: 71.275 ms
+RESET
+Time: 0.202 ms
+VACUUM
+Time: 980.796 ms
+Row counts after bulk load:
+    table_name     | count  
+-------------------+--------
+ doctor            |    200
+ patient_allergy   |   2494
+ patient           |  50020
+ lab_order         | 160500
+ prescription      | 274165
+ lab_result        | 401731
+ prescription_item | 546426
+ appointment       | 591231
+ diagnosis         | 590059
+(9 rows)
+
+Time: 87.364 ms
+ database_size 
+---------------
+ 434 MB
+(1 row)
+
+Time: 1.183 ms

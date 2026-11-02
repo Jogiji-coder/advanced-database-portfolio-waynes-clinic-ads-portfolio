@@ -1,0 +1,130 @@
+-- E1 Patient history (core operation, Q3)
+-- Variant 1: Before: FK columns unindexed
+-- Median execution time over 7 runs: 120.915 ms
+
+SELECT event_time, event_type, appointment_id, detail
+FROM v_patient_history
+WHERE patient_id = 83 AND event_time <= '2026-10-28'
+ORDER BY event_time DESC;
+
+Gather Merge  (cost=47247.48..47251.91 rows=38 width=80) (actual time=112.952..116.299 rows=66 loops=1)
+  Workers Planned: 2
+  Workers Launched: 2
+  Buffers: shared hit=17593 read=12448
+  ->  Sort  (cost=46247.46..46247.50 rows=19 width=80) (actual time=106.318..106.336 rows=22 loops=3)
+        Sort Key: "*SELECT* 3".issued_at DESC
+        Sort Method: quicksort  Memory: 30kB
+        Buffers: shared hit=17593 read=12448
+        Worker 0:  Sort Method: quicksort  Memory: 25kB
+        Worker 1:  Sort Method: quicksort  Memory: 25kB
+        ->  Parallel Append  (cost=9551.10..46247.05 rows=19 width=80) (actual time=52.816..106.266 rows=22 loops=3)
+              Buffers: shared hit=17575 read=12448
+              ->  Subquery Scan on "*SELECT* 3"  (cost=9551.10..14261.53 rows=7 width=80) (actual time=30.799..45.903 rows=5 loops=3)
+                    Buffers: shared hit=5899 read=2957
+                    ->  Nested Loop  (cost=9551.10..14261.46 rows=7 width=116) (actual time=30.792..45.894 rows=5 loops=3)
+                          Buffers: shared hit=5899 read=2957
+                          ->  Nested Loop  (cost=9550.96..14260.11 rows=7 width=44) (actual time=30.770..45.856 rows=5 loops=3)
+                                Buffers: shared hit=5869 read=2957
+                                ->  Nested Loop  (cost=9550.54..14257.73 rows=4 width=24) (actual time=30.750..45.815 rows=2 loops=3)
+                                      Buffers: shared hit=5839 read=2957
+                                      ->  Parallel Hash Join  (cost=9550.39..14254.61 rows=4 width=28) (actual time=30.728..45.784 rows=2 loops=3)
+                                            Hash Cond: (pr.appointment_id = a.appointment_id)
+                                            Buffers: shared hit=5828 read=2957
+                                            ->  Parallel Seq Scan on prescription pr  (cost=0.00..4280.92 rows=161258 width=24) (actual time=0.006..10.732 rows=91388 loops=3)
+                                                  Filter: (issued_at <= '2026-10-28 00:00:00-04'::timestamp with time zone)
+                                                  Rows Removed by Filter: 0
+                                                  Buffers: shared hit=2265
+                                            ->  Parallel Hash  (cost=9550.33..9550.33 rows=5 width=12) (actual time=23.477..23.478 rows=6 loops=3)
+                                                  Buckets: 1024  Batches: 1  Memory Usage: 40kB
+                                                  Buffers: shared hit=3514 read=2957
+                                                  ->  Parallel Seq Scan on appointment a  (cost=0.00..9550.33 rows=5 width=12) (actual time=1.585..70.402 rows=17 loops=1)
+                                                        Filter: (patient_id = 83)
+                                                        Rows Removed by Filter: 591214
+                                                        Buffers: shared hit=3514 read=2957
+                                      ->  Index Only Scan using doctor_pkey on doctor d  (cost=0.14..0.78 rows=1 width=4) (actual time=0.009..0.009 rows=1 loops=7)
+                                            Index Cond: (doctor_id = a.doctor_id)
+                                            Heap Fetches: 0
+                                            Buffers: shared hit=11
+                                ->  Index Scan using uq_prescription_item_med on prescription_item pi  (cost=0.42..0.57 rows=2 width=36) (actual time=0.013..0.014 rows=2 loops=7)
+                                      Index Cond: (prescription_id = pr.prescription_id)
+                                      Buffers: shared hit=30
+                          ->  Index Scan using medication_pkey on medication m  (cost=0.14..0.16 rows=1 width=22) (actual time=0.004..0.004 rows=1 loops=14)
+                                Index Cond: (medication_id = pi.medication_id)
+                                Buffers: shared hit=30
+              ->  Subquery Scan on "*SELECT* 4"  (cost=9551.10..12213.13 rows=5 width=80) (actual time=39.507..50.710 rows=9 loops=2)
+                    Buffers: shared hit=5025 read=3041
+                    ->  Nested Loop  (cost=9551.10..12213.08 rows=5 width=116) (actual time=39.506..50.705 rows=9 loops=2)
+                          Buffers: shared hit=5025 read=3041
+                          ->  Nested Loop  (cost=9550.96..12212.17 rows=5 width=73) (actual time=39.481..50.649 rows=9 loops=2)
+                                Buffers: shared hit=4988 read=3041
+                                ->  Nested Loop  (cost=9550.54..12210.90 rows=2 width=16) (actual time=39.465..50.605 rows=4 loops=2)
+                                      Buffers: shared hit=4956 read=3041
+                                      ->  Parallel Hash Join  (cost=9550.39..12209.34 rows=2 width=20) (actual time=39.449..50.574 rows=4 loops=2)
+                                            Hash Cond: (lo.appointment_id = a_1.appointment_id)
+                                            Buffers: shared hit=4946 read=3041
+                                            ->  Parallel Seq Scan on lab_order lo  (cost=0.00..2411.12 rows=94412 width=16) (actual time=0.006..6.876 rows=80250 loops=2)
+                                                  Buffers: shared hit=1467
+                                            ->  Parallel Hash  (cost=9550.33..9550.33 rows=5 width=12) (actual time=33.638..33.639 rows=8 loops=2)
+                                                  Buckets: 1024  Batches: 1  Memory Usage: 40kB
+                                                  Buffers: shared hit=3430 read=3041
+                                                  ->  Parallel Seq Scan on appointment a_1  (cost=0.00..9550.33 rows=5 width=12) (actual time=4.424..67.197 rows=17 loops=1)
+                                                        Filter: (patient_id = 83)
+                                                        Rows Removed by Filter: 591214
+                                                        Buffers: shared hit=3430 read=3041
+                                      ->  Index Only Scan using doctor_pkey on doctor d_1  (cost=0.14..0.78 rows=1 width=4) (actual time=0.006..0.006 rows=1 loops=7)
+                                            Index Cond: (doctor_id = a_1.doctor_id)
+                                            Heap Fetches: 0
+                                            Buffers: shared hit=10
+                                ->  Index Scan using uq_lab_result_order_test on lab_result r  (cost=0.42..0.60 rows=3 width=73) (actual time=0.009..0.010 rows=3 loops=7)
+                                      Index Cond: (lab_order_id = lo.lab_order_id)
+                                      Filter: (resulted_at <= '2026-10-28 00:00:00-04'::timestamp with time zone)
+                                      Buffers: shared hit=32
+                          ->  Index Scan using lab_test_pkey on lab_test lt  (cost=0.14..0.16 rows=1 width=27) (actual time=0.003..0.003 rows=1 loops=18)
+                                Index Cond: ((test_code)::text = (r.test_code)::text)
+                                Buffers: shared hit=37
+              ->  Subquery Scan on "*SELECT* 1"  (cost=7.63..10174.91 rows=5 width=80) (actual time=2.886..44.433 rows=16 loops=1)
+                    Buffers: shared hit=3292 read=3214
+                    ->  Nested Loop  (cost=7.63..10174.86 rows=5 width=116) (actual time=2.884..44.424 rows=16 loops=1)
+                          Buffers: shared hit=3292 read=3214
+                          ->  Hash Join  (cost=7.50..10173.71 rows=5 width=35) (actual time=2.864..44.305 rows=16 loops=1)
+                                Hash Cond: (a_2.doctor_id = d_2.doctor_id)
+                                Buffers: shared hit=3260 read=3214
+                                ->  Parallel Seq Scan on appointment a_2  (cost=0.00..10166.19 rows=5 width=37) (actual time=2.773..44.184 rows=16 loops=1)
+                                      Filter: ((scheduled_start <= '2026-10-28 00:00:00-04'::timestamp with time zone) AND (patient_id = 83))
+                                      Rows Removed by Filter: 591215
+                                      Buffers: shared hit=3257 read=3214
+                                ->  Hash  (cost=5.00..5.00 rows=200 width=6) (actual time=0.068..0.069 rows=200 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                                      Buffers: shared hit=3
+                                      ->  Seq Scan on doctor d_2  (cost=0.00..5.00 rows=200 width=6) (actual time=0.008..0.039 rows=200 loops=1)
+                                            Buffers: shared hit=3
+                          ->  Index Scan using specialty_pkey on specialty s  (cost=0.14..0.21 rows=1 width=17) (actual time=0.003..0.003 rows=1 loops=16)
+                                Index Cond: (specialty_id = d_2.specialty_id)
+                                Buffers: shared hit=32
+              ->  Subquery Scan on "*SELECT* 2"  (cost=0.71..9597.39 rows=5 width=80) (actual time=1.748..35.195 rows=18 loops=1)
+                    Buffers: shared hit=3359 read=3236
+                    ->  Nested Loop  (cost=0.71..9597.34 rows=5 width=116) (actual time=1.747..35.187 rows=18 loops=1)
+                          Buffers: shared hit=3359 read=3236
+                          ->  Nested Loop  (cost=0.57..9596.50 rows=5 width=30) (actual time=1.740..35.122 rows=18 loops=1)
+                                Buffers: shared hit=3323 read=3236
+                                ->  Nested Loop  (cost=0.42..9592.60 rows=5 width=34) (actual time=1.735..35.084 rows=18 loops=1)
+                                      Buffers: shared hit=3304 read=3236
+                                      ->  Parallel Seq Scan on appointment a_3  (cost=0.00..9550.33 rows=5 width=12) (actual time=1.720..34.946 rows=17 loops=1)
+                                            Filter: (patient_id = 83)
+                                            Rows Removed by Filter: 591214
+                                            Buffers: shared hit=3235 read=3236
+                                      ->  Index Scan using uq_diagnosis_appt_code on diagnosis dx  (cost=0.42..8.45 rows=1 width=30) (actual time=0.005..0.006 rows=1 loops=17)
+                                            Index Cond: (appointment_id = a_3.appointment_id)
+                                            Filter: (diagnosed_at <= '2026-10-28 00:00:00-04'::timestamp with time zone)
+                                            Buffers: shared hit=69
+                                ->  Index Only Scan using doctor_pkey on doctor d_3  (cost=0.14..0.78 rows=1 width=4) (actual time=0.001..0.001 rows=1 loops=18)
+                                      Index Cond: (doctor_id = a_3.doctor_id)
+                                      Heap Fetches: 0
+                                      Buffers: shared hit=19
+                          ->  Index Scan using icd10_code_pkey on icd10_code ic  (cost=0.14..0.16 rows=1 width=42) (actual time=0.002..0.002 rows=1 loops=18)
+                                Index Cond: ((icd10_code)::text = (dx.icd10_code)::text)
+                                Buffers: shared hit=36
+Planning:
+  Buffers: shared hit=82
+Planning Time: 1.728 ms
+Execution Time: 116.410 ms

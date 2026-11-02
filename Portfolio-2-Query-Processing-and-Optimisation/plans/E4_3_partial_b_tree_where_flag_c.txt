@@ -1,0 +1,53 @@
+-- E4 Critical-result worklist, last 7 days (Q5)
+-- Variant 3: Partial B-tree WHERE flag = 'C'
+-- Median execution time over 7 runs: 0.443 ms
+
+SELECT r.resulted_at, p.mrn, p.last_name, t.test_name, r.result_value, d.last_name AS doctor
+FROM lab_result r
+JOIN lab_order lo  ON lo.lab_order_id = r.lab_order_id
+JOIN appointment a ON a.appointment_id = lo.appointment_id
+JOIN patient p     ON p.patient_id = a.patient_id
+JOIN doctor d      ON d.doctor_id = a.doctor_id
+JOIN lab_test t    ON t.test_code = r.test_code
+WHERE r.abnormal_flag = 'C' AND r.resulted_at >= TIMESTAMPTZ '2026-10-28' - interval '7 days'
+ORDER BY r.resulted_at DESC;
+
+Sort  (cost=303.50..303.57 rows=31 width=55) (actual time=0.388..0.416 rows=52 loops=1)
+  Sort Key: r.resulted_at DESC
+  Sort Method: quicksort  Memory: 29kB
+  Buffers: shared hit=722
+  ->  Hash Join  (cost=2.97..302.73 rows=31 width=55) (actual time=0.032..0.371 rows=52 loops=1)
+        Hash Cond: ((r.test_code)::text = (t.test_code)::text)
+        Buffers: shared hit=722
+        ->  Nested Loop  (cost=1.56..301.22 rows=31 width=41) (actual time=0.018..0.343 rows=52 loops=1)
+              Buffers: shared hit=721
+              ->  Nested Loop  (cost=1.42..296.18 rows=31 width=39) (actual time=0.015..0.292 rows=52 loops=1)
+                    Buffers: shared hit=617
+                    ->  Nested Loop  (cost=1.13..286.45 rows=31 width=25) (actual time=0.013..0.196 rows=52 loops=1)
+                          Buffers: shared hit=461
+                          ->  Nested Loop  (cost=0.70..266.48 rows=31 width=25) (actual time=0.009..0.104 rows=52 loops=1)
+                                Buffers: shared hit=253
+                                ->  Index Scan Backward using ix_lab_result_critical on lab_result r  (cost=0.28..8.92 rows=31 width=25) (actual time=0.005..0.027 rows=52 loops=1)
+                                      Index Cond: (resulted_at >= ('2026-10-28 00:00:00-04'::timestamp with time zone - '7 days'::interval))
+                                      Buffers: shared hit=45
+                                ->  Index Scan using lab_order_pkey on lab_order lo  (cost=0.42..8.31 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=52)
+                                      Index Cond: (lab_order_id = r.lab_order_id)
+                                      Buffers: shared hit=208
+                          ->  Index Scan using appointment_pkey on appointment a  (cost=0.42..0.64 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=52)
+                                Index Cond: (appointment_id = lo.appointment_id)
+                                Buffers: shared hit=208
+                    ->  Index Scan using patient_pkey on patient p  (cost=0.29..0.31 rows=1 width=22) (actual time=0.001..0.001 rows=1 loops=52)
+                          Index Cond: (patient_id = a.patient_id)
+                          Buffers: shared hit=156
+              ->  Index Scan using doctor_pkey on doctor d  (cost=0.14..0.16 rows=1 width=10) (actual time=0.001..0.001 rows=1 loops=52)
+                    Index Cond: (doctor_id = a.doctor_id)
+                    Buffers: shared hit=104
+        ->  Hash  (cost=1.18..1.18 rows=18 width=22) (actual time=0.010..0.011 rows=18 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 9kB
+              Buffers: shared hit=1
+              ->  Seq Scan on lab_test t  (cost=0.00..1.18 rows=18 width=22) (actual time=0.003..0.005 rows=18 loops=1)
+                    Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=58
+Planning Time: 0.827 ms
+Execution Time: 0.443 ms

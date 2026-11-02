@@ -1,0 +1,32 @@
+-- E3 Doctor's day list (Q4)
+-- Variant 1: Non-sargable date cast, no index
+-- Median execution time over 7 runs: 28.700 ms
+
+SELECT a.scheduled_start, p.mrn, p.first_name, p.last_name, a.status, a.reason
+FROM appointment a JOIN patient p USING (patient_id)
+WHERE a.doctor_id = 15 AND (a.scheduled_start AT TIME ZONE 'America/New_York')::date = DATE '2026-10-20'
+ORDER BY a.scheduled_start;
+
+Gather Merge  (cost=12447.87..12449.27 rows=12 width=49) (actual time=28.001..31.405 rows=7 loops=1)
+  Workers Planned: 2
+  Workers Launched: 2
+  Buffers: shared hit=4262 read=2249
+  ->  Sort  (cost=11447.85..11447.86 rows=6 width=49) (actual time=23.924..23.926 rows=2 loops=3)
+        Sort Key: a.scheduled_start
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=4262 read=2249
+        Worker 0:  Sort Method: quicksort  Memory: 25kB
+        Worker 1:  Sort Method: quicksort  Memory: 25kB
+        ->  Nested Loop  (cost=0.29..11447.77 rows=6 width=49) (actual time=22.080..23.896 rows=2 loops=3)
+              Buffers: shared hit=4244 read=2249
+              ->  Parallel Seq Scan on appointment a  (cost=0.00..11397.92 rows=6 width=29) (actual time=22.067..23.875 rows=2 loops=3)
+                    Filter: ((doctor_id = 15) AND (((scheduled_start AT TIME ZONE 'America/New_York'::text))::date = '2026-10-20'::date))
+                    Rows Removed by Filter: 197075
+                    Buffers: shared hit=4222 read=2249
+              ->  Index Scan using patient_pkey on patient p  (cost=0.29..8.31 rows=1 width=28) (actual time=0.007..0.007 rows=1 loops=7)
+                    Index Cond: (patient_id = a.patient_id)
+                    Buffers: shared hit=22
+Planning:
+  Buffers: shared hit=16
+Planning Time: 0.363 ms
+Execution Time: 31.459 ms

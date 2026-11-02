@@ -1,0 +1,575 @@
+{
+  "environment": {
+    "server": "PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+    "cpus": 2,
+    "run_at": "2026-10-28T22:44:39",
+    "settings": {
+      "shared_buffers": "128MB",
+      "work_mem": "4MB",
+      "effective_cache_size": "4GB",
+      "random_page_cost": "4",
+      "max_parallel_workers_per_gather": "2",
+      "jit": "off"
+    },
+    "rows": {
+      "patient": 50020,
+      "doctor": 200,
+      "appointment": 591231,
+      "diagnosis": 590059,
+      "prescription": 274165,
+      "prescription_item": 546426,
+      "lab_order": 160500,
+      "lab_result": 401731
+    },
+    "params": {
+      "pid": 83,
+      "doc": 15,
+      "day": "2026-10-20",
+      "today": "2026-10-28"
+    }
+  },
+  "experiments": [
+    {
+      "id": "E1",
+      "title": "Patient history (core operation, Q3)",
+      "technique": "B-tree indexes on foreign-key columns",
+      "variants": [
+        {
+          "label": "Before: FK columns unindexed",
+          "median_ms": 120.915,
+          "min_ms": 118.306,
+          "max_ms": 128.936,
+          "planning_ms": 1.648,
+          "shared_hit": 17142,
+          "shared_read": 12899,
+          "rows": 66,
+          "scans": [
+            "Subquery Scan",
+            "Seq Scan on prescription",
+            "Seq Scan on appointment",
+            "Index Only Scan on doctor using doctor_pkey",
+            "Index Scan on prescription_item using uq_prescription_item_med",
+            "Index Scan on medication using medication_pkey",
+            "Subquery Scan",
+            "Seq Scan on lab_order",
+            "Seq Scan on appointment",
+            "Index Only Scan on doctor using doctor_pkey",
+            "Index Scan on lab_result using uq_lab_result_order_test",
+            "Index Scan on lab_test using lab_test_pkey",
+            "Subquery Scan",
+            "Seq Scan on appointment",
+            "Seq Scan on doctor",
+            "Index Scan on specialty using specialty_pkey",
+            "Subquery Scan",
+            "Seq Scan on appointment",
+            "Index Scan on diagnosis using uq_diagnosis_appt_code",
+            "Index Only Scan on doctor using doctor_pkey",
+            "Index Scan on icd10_code using icd10_code_pkey"
+          ],
+          "plan_file": "E1_1_before_fk_columns_unindexed.txt"
+        },
+        {
+          "label": "After: 3 FK indexes",
+          "median_ms": 0.63,
+          "min_ms": 0.54,
+          "max_ms": 0.687,
+          "planning_ms": 1.471,
+          "shared_hit": 446,
+          "shared_read": 0,
+          "rows": 66,
+          "scans": [
+            "Subquery Scan",
+            "Bitmap Heap Scan on appointment",
+            "Bitmap Index Scan using ix_appt_patient_start",
+            "Seq Scan on doctor",
+            "Seq Scan on specialty",
+            "Subquery Scan",
+            "Bitmap Heap Scan on appointment",
+            "Bitmap Index Scan using ix_appt_patient_start",
+            "Index Scan on diagnosis using uq_diagnosis_appt_code",
+            "Seq Scan on doctor",
+            "Index Scan on icd10_code using icd10_code_pkey",
+            "Subquery Scan",
+            "Bitmap Heap Scan on appointment",
+            "Bitmap Index Scan using ix_appt_patient_start",
+            "Index Scan on prescription using ix_prescription_appt",
+            "Index Only Scan on doctor using doctor_pkey",
+            "Index Scan on prescription_item using uq_prescription_item_med",
+            "Index Scan on medication using medication_pkey",
+            "Subquery Scan",
+            "Bitmap Heap Scan on appointment",
+            "Bitmap Index Scan using ix_appt_patient_start",
+            "Index Scan on lab_order using ix_lab_order_appt",
+            "Index Only Scan on doctor using doctor_pkey",
+            "Index Scan on lab_result using uq_lab_result_order_test",
+            "Index Scan on lab_test using lab_test_pkey"
+          ],
+          "plan_file": "E1_2_after_3_fk_indexes.txt"
+        }
+      ]
+    },
+    {
+      "id": "E2a",
+      "title": "Find patient by surname prefix (Q2)",
+      "technique": "Operator class matters (varchar_pattern_ops)",
+      "variants": [
+        {
+          "label": "No index on last_name",
+          "median_ms": 3.182,
+          "min_ms": 3.08,
+          "max_ms": 4.844,
+          "planning_ms": 0.046,
+          "shared_hit": 808,
+          "shared_read": 0,
+          "rows": 34,
+          "scans": [
+            "Seq Scan on patient"
+          ],
+          "plan_file": "E2a_1_no_index_on_last_name.txt"
+        },
+        {
+          "label": "Default B-tree (not usable for LIKE)",
+          "median_ms": 3.154,
+          "min_ms": 3.062,
+          "max_ms": 4.844,
+          "planning_ms": 0.06,
+          "shared_hit": 808,
+          "shared_read": 0,
+          "rows": 34,
+          "scans": [
+            "Seq Scan on patient"
+          ],
+          "plan_file": "E2a_2_default_b_tree_not_usable_for_like.txt"
+        },
+        {
+          "label": "B-tree with varchar_pattern_ops",
+          "median_ms": 0.431,
+          "min_ms": 0.375,
+          "max_ms": 0.583,
+          "planning_ms": 0.059,
+          "shared_hit": 526,
+          "shared_read": 0,
+          "rows": 34,
+          "scans": [
+            "Bitmap Heap Scan on patient",
+            "Bitmap Index Scan using ix_patient_last_pattern"
+          ],
+          "plan_file": "E2a_3_b_tree_with_varchar_pattern_ops.txt"
+        }
+      ]
+    },
+    {
+      "id": "E2b",
+      "title": "Find patient by any part of surname, case-insensitive",
+      "technique": "Trigram GIN index (pg_trgm)",
+      "variants": [
+        {
+          "label": "Before: B-tree cannot serve ILIKE '%...%'",
+          "median_ms": 19.448,
+          "min_ms": 18.01,
+          "max_ms": 19.662,
+          "planning_ms": 0.064,
+          "shared_hit": 808,
+          "shared_read": 0,
+          "rows": 807,
+          "scans": [
+            "Seq Scan on patient"
+          ],
+          "plan_file": "E2b_1_before_b_tree_cannot_serve_ilike.txt"
+        },
+        {
+          "label": "After: GIN trigram index",
+          "median_ms": 0.768,
+          "min_ms": 0.735,
+          "max_ms": 0.858,
+          "planning_ms": 0.05,
+          "shared_hit": 528,
+          "shared_read": 0,
+          "rows": 807,
+          "scans": [
+            "Bitmap Heap Scan on patient",
+            "Bitmap Index Scan using ix_patient_last_trgm"
+          ],
+          "plan_file": "E2b_2_after_gin_trigram_index.txt"
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "Doctor's day list (Q4)",
+      "technique": "Sargable predicate rewrite + composite index",
+      "variants": [
+        {
+          "label": "Non-sargable date cast, no index",
+          "median_ms": 28.7,
+          "min_ms": 26.438,
+          "max_ms": 33.267,
+          "planning_ms": 0.241,
+          "shared_hit": 4167,
+          "shared_read": 2345,
+          "rows": 7,
+          "scans": [
+            "Seq Scan on appointment",
+            "Index Scan on patient using patient_pkey"
+          ],
+          "plan_file": "E3_1_non_sargable_date_cast_no_index.txt"
+        },
+        {
+          "label": "Sargable range, no index",
+          "median_ms": 29.118,
+          "min_ms": 27.645,
+          "max_ms": 32.485,
+          "planning_ms": 0.248,
+          "shared_hit": 5012,
+          "shared_read": 1481,
+          "rows": 7,
+          "scans": [
+            "Seq Scan on appointment",
+            "Index Scan on patient using patient_pkey"
+          ],
+          "plan_file": "E3_2_sargable_range_no_index.txt"
+        },
+        {
+          "label": "Non-sargable + composite index",
+          "median_ms": 2.936,
+          "min_ms": 2.696,
+          "max_ms": 3.861,
+          "planning_ms": 0.197,
+          "shared_hit": 2831,
+          "shared_read": 0,
+          "rows": 7,
+          "scans": [
+            "Bitmap Heap Scan on appointment",
+            "Bitmap Index Scan using ix_appt_doctor_start",
+            "Index Scan on patient using patient_pkey"
+          ],
+          "plan_file": "E3_3_non_sargable_composite_index.txt"
+        },
+        {
+          "label": "Sargable + composite index",
+          "median_ms": 0.025,
+          "min_ms": 0.022,
+          "max_ms": 0.037,
+          "planning_ms": 0.121,
+          "shared_hit": 30,
+          "shared_read": 0,
+          "rows": 7,
+          "scans": [
+            "Index Scan on appointment using ix_appt_doctor_start",
+            "Index Scan on patient using patient_pkey"
+          ],
+          "plan_file": "E3_4_sargable_composite_index.txt"
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "Critical-result worklist, last 7 days (Q5)",
+      "technique": "BRIN vs partial B-tree index",
+      "variants": [
+        {
+          "label": "No index on resulted_at",
+          "median_ms": 25.208,
+          "min_ms": 24.49,
+          "max_ms": 28.937,
+          "planning_ms": 0.983,
+          "shared_hit": 4157,
+          "shared_read": 0,
+          "rows": 52,
+          "scans": [
+            "Seq Scan on lab_result",
+            "Index Scan on lab_order using lab_order_pkey",
+            "Index Scan on appointment using appointment_pkey",
+            "Index Scan on patient using patient_pkey",
+            "Index Scan on doctor using doctor_pkey",
+            "Seq Scan on lab_test"
+          ],
+          "plan_file": "E4_1_no_index_on_resulted_at.txt"
+        },
+        {
+          "label": "BRIN on resulted_at",
+          "median_ms": 2.473,
+          "min_ms": 2.439,
+          "max_ms": 2.901,
+          "planning_ms": 0.863,
+          "shared_hit": 763,
+          "shared_read": 0,
+          "rows": 52,
+          "scans": [
+            "Bitmap Heap Scan on lab_result",
+            "Bitmap Index Scan using ix_lab_result_resulted_brin",
+            "Index Scan on lab_order using lab_order_pkey",
+            "Index Scan on appointment using appointment_pkey",
+            "Index Scan on patient using patient_pkey",
+            "Index Scan on doctor using doctor_pkey",
+            "Seq Scan on lab_test"
+          ],
+          "plan_file": "E4_2_brin_on_resulted_at.txt"
+        },
+        {
+          "label": "Partial B-tree WHERE flag = 'C'",
+          "median_ms": 0.443,
+          "min_ms": 0.404,
+          "max_ms": 0.504,
+          "planning_ms": 0.817,
+          "shared_hit": 722,
+          "shared_read": 0,
+          "rows": 52,
+          "scans": [
+            "Index Scan on lab_result using ix_lab_result_critical",
+            "Index Scan on lab_order using lab_order_pkey",
+            "Index Scan on appointment using appointment_pkey",
+            "Index Scan on patient using patient_pkey",
+            "Index Scan on doctor using doctor_pkey",
+            "Seq Scan on lab_test"
+          ],
+          "plan_file": "E4_3_partial_b_tree_where_flag_c.txt"
+        }
+      ],
+      "index_sizes": {
+        "ix_lab_result_resulted_brin": 24576,
+        "ix_lab_result_critical": 81920,
+        "lab_result (table)": 27426816
+      }
+    },
+    {
+      "id": "E5",
+      "title": "Warfarin patients with no recent INR (Q8b)",
+      "technique": "Anti-join rewrite",
+      "variants": [
+        {
+          "label": "Correlated COUNT(*) = 0",
+          "median_ms": 462.942,
+          "min_ms": 415.811,
+          "max_ms": 529.213,
+          "planning_ms": 0.867,
+          "shared_hit": 471306,
+          "shared_read": 10702,
+          "rows": 1,
+          "scans": [
+            "Seq Scan on prescription",
+            "Seq Scan on medication",
+            "Bitmap Heap Scan on prescription_item",
+            "Bitmap Index Scan using ix_item_medication",
+            "Index Scan on appointment using appointment_pkey",
+            "Bitmap Heap Scan on appointment",
+            "Bitmap Index Scan using ix_appt_patient_start",
+            "Index Scan on lab_order using ix_lab_order_appt",
+            "Index Scan on lab_result using uq_lab_result_order_test"
+          ],
+          "plan_file": "E5_1_correlated_count_0.txt"
+        },
+        {
+          "label": "NOT IN (subquery)",
+          "median_ms": 218.156,
+          "min_ms": 216.579,
+          "max_ms": 258.109,
+          "planning_ms": 0.872,
+          "shared_hit": 77101,
+          "shared_read": 2456,
+          "rows": 1,
+          "scans": [
+            "Seq Scan on appointment",
+            "Seq Scan on lab_order",
+            "Bitmap Heap Scan on lab_result",
+            "Bitmap Index Scan using ix_lab_result_test",
+            "Index Scan on appointment using appointment_pkey",
+            "Seq Scan on prescription",
+            "Seq Scan on medication",
+            "Bitmap Heap Scan on prescription_item",
+            "Bitmap Index Scan using ix_item_medication"
+          ],
+          "plan_file": "E5_2_not_in_subquery.txt"
+        },
+        {
+          "label": "NOT EXISTS (anti-join)",
+          "median_ms": 101.965,
+          "min_ms": 88.049,
+          "max_ms": 122.318,
+          "planning_ms": 1.179,
+          "shared_hit": 56252,
+          "shared_read": 0,
+          "rows": 1,
+          "scans": [
+            "Seq Scan on lab_order",
+            "Bitmap Heap Scan on lab_result",
+            "Bitmap Index Scan using ix_lab_result_test",
+            "Index Scan on appointment using appointment_pkey",
+            "Seq Scan on prescription",
+            "Seq Scan on medication",
+            "Bitmap Heap Scan on prescription_item",
+            "Bitmap Index Scan using ix_item_medication",
+            "Index Scan on appointment using appointment_pkey"
+          ],
+          "plan_file": "E5_3_not_exists_anti_join.txt"
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "Top-3 diagnoses per department, 2026 (Q6)",
+      "technique": "Materialised view (pre-aggregation)",
+      "variants": [
+        {
+          "label": "Live aggregation over 590k diagnoses",
+          "median_ms": 222.48,
+          "min_ms": 217.333,
+          "max_ms": 258.21,
+          "planning_ms": 0.558,
+          "shared_hit": 4469,
+          "shared_read": 7085,
+          "rows": 24,
+          "scans": [
+            "Subquery Scan",
+            "Seq Scan on diagnosis",
+            "Seq Scan on appointment",
+            "Seq Scan on doctor",
+            "Seq Scan on department"
+          ],
+          "plan_file": "E6_1_live_aggregation_over_590k_diagnoses.txt"
+        },
+        {
+          "label": "Query the materialised view",
+          "median_ms": 0.413,
+          "min_ms": 0.403,
+          "max_ms": 0.476,
+          "planning_ms": 0.118,
+          "shared_hit": 8,
+          "shared_read": 0,
+          "rows": 24,
+          "scans": [
+            "Subquery Scan",
+            "Seq Scan on mv_dept_dx_month"
+          ],
+          "plan_file": "E6_2_query_the_materialised_view.txt"
+        }
+      ],
+      "refresh_concurrently_ms": 643.5
+    },
+    {
+      "id": "E7",
+      "title": "Join algorithm choice: appointment JOIN diagnosis (590k x 590k)",
+      "technique": "Cost-based optimiser vs forced strategies",
+      "variants": [
+        {
+          "label": "Planner's choice",
+          "median_ms": 317.138,
+          "min_ms": 293.302,
+          "max_ms": 362.47,
+          "planning_ms": 0.277,
+          "shared_hit": 6381,
+          "shared_read": 5101,
+          "rows": 22,
+          "scans": [
+            "Seq Scan on appointment",
+            "Seq Scan on diagnosis"
+          ],
+          "plan_file": "E7_1_planner_s_choice.txt"
+        },
+        {
+          "label": "Forced merge join",
+          "median_ms": 290.956,
+          "min_ms": 265.416,
+          "max_ms": 446.975,
+          "planning_ms": 0.285,
+          "shared_hit": 12151,
+          "shared_read": 0,
+          "rows": 22,
+          "scans": [
+            "Index Scan on appointment using appointment_pkey",
+            "Index Only Scan on diagnosis using ux_diagnosis_one_primary"
+          ],
+          "plan_file": "E7_2_forced_merge_join.txt"
+        },
+        {
+          "label": "Forced nested loop",
+          "median_ms": 500.801,
+          "min_ms": 451.035,
+          "max_ms": 567.898,
+          "planning_ms": 0.236,
+          "shared_hit": 1833257,
+          "shared_read": 2432,
+          "rows": 22,
+          "scans": [
+            "Seq Scan on diagnosis",
+            "Index Scan on appointment using appointment_pkey"
+          ],
+          "plan_file": "E7_3_forced_nested_loop.txt"
+        },
+        {
+          "label": "Planner's choice, random_page_cost = 1.1 (SSD)",
+          "median_ms": 321.658,
+          "min_ms": 295.79,
+          "max_ms": 341.031,
+          "planning_ms": 0.305,
+          "shared_hit": 7760,
+          "shared_read": 0,
+          "rows": 22,
+          "scans": [
+            "Seq Scan on appointment",
+            "Index Only Scan on diagnosis using ux_diagnosis_one_primary"
+          ],
+          "plan_file": "E7_4_planner_s_choice_random_page_cost_1_1_ss.txt"
+        }
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "Status counts for one doctor, 2026",
+      "technique": "Covering index (INCLUDE) enables index-only scan",
+      "variants": [
+        {
+          "label": "Composite index, heap lookups",
+          "median_ms": 1.844,
+          "min_ms": 1.259,
+          "max_ms": 2.494,
+          "planning_ms": 0.097,
+          "shared_hit": 1380,
+          "shared_read": 0,
+          "rows": 4,
+          "scans": [
+            "Bitmap Heap Scan on appointment",
+            "Bitmap Index Scan using ix_appt_doctor_start"
+          ],
+          "plan_file": "E8_1_composite_index_heap_lookups.txt"
+        },
+        {
+          "label": "Covering index INCLUDE (status)",
+          "median_ms": 0.356,
+          "min_ms": 0.323,
+          "max_ms": 0.402,
+          "planning_ms": 0.077,
+          "shared_hit": 11,
+          "shared_read": 0,
+          "rows": 4,
+          "scans": [
+            "Index Only Scan on appointment using ix_appt_doctor_start_cov"
+          ],
+          "plan_file": "E8_2_covering_index_include_status.txt"
+        }
+      ]
+    },
+    {
+      "id": "E9",
+      "title": "Write cost of indexes: inserting 100 000 appointments",
+      "technique": "Index maintenance overhead",
+      "write_cost": [
+        {
+          "label": "Primary key only",
+          "median_ms": 191.2,
+          "index_bytes": 2260992
+        },
+        {
+          "label": "+ 3 B-tree indexes",
+          "median_ms": 648.7,
+          "index_bytes": 13852672
+        },
+        {
+          "label": "+ 3 B-tree + 2 GiST exclusion",
+          "median_ms": 5484.3,
+          "index_bytes": 28049408
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+-- E7 Join algorithm choice: appointment JOIN diagnosis (590k x 590k)
+-- Variant 3: Forced nested loop
+-- Session settings: SET enable_hashjoin = off; SET enable_mergejoin = off
+-- Median execution time over 7 runs: 500.801 ms
+
+SELECT date_trunc('month', a.scheduled_start) AS month, count(*)
+FROM appointment a JOIN diagnosis dx ON dx.appointment_id = a.appointment_id
+WHERE dx.diagnosis_type = 'Primary'
+GROUP BY 1 ORDER BY 1;
+
+Finalize GroupAggregate  (cost=108481.52..110627.08 rows=8386 width=16) (actual time=548.935..553.202 rows=22 loops=1)
+  Group Key: (date_trunc('month'::text, a.scheduled_start))
+  Buffers: shared hit=1833353 read=2336
+  ->  Gather Merge  (cost=108481.52..110438.39 rows=16772 width=16) (actual time=548.927..553.186 rows=66 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=1833353 read=2336
+        ->  Sort  (cost=107481.50..107502.47 rows=8386 width=16) (actual time=544.322..544.325 rows=22 loops=3)
+              Sort Key: (date_trunc('month'::text, a.scheduled_start))
+              Sort Method: quicksort  Memory: 25kB
+              Buffers: shared hit=1833353 read=2336
+              Worker 0:  Sort Method: quicksort  Memory: 25kB
+              Worker 1:  Sort Method: quicksort  Memory: 25kB
+              ->  Partial HashAggregate  (cost=106830.17..106935.00 rows=8386 width=16) (actual time=544.219..544.296 rows=22 loops=3)
+                    Group Key: date_trunc('month'::text, a.scheduled_start)
+                    Batches: 1  Memory Usage: 409kB
+                    Buffers: shared hit=1833335 read=2336
+                    Worker 0:  Batches: 1  Memory Usage: 409kB
+                    Worker 1:  Batches: 1  Memory Usage: 409kB
+                    ->  Nested Loop  (cost=0.42..105882.35 rows=189565 width=8) (actual time=0.050..509.533 rows=152559 loops=3)
+                          Buffers: shared hit=1833335 read=2336
+                          ->  Parallel Seq Scan on diagnosis dx  (cost=0.00..8034.22 rows=189565 width=8) (actual time=0.023..38.996 rows=152559 loops=3)
+                                Filter: ((diagnosis_type)::text = 'Primary'::text)
+                                Rows Removed by Filter: 44127
+                                Buffers: shared hit=2625 read=2336
+                          ->  Index Scan using appointment_pkey on appointment a  (cost=0.42..0.51 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=457677)
+                                Index Cond: (appointment_id = dx.appointment_id)
+                                Buffers: shared hit=1830710
+Planning Time: 0.203 ms
+Execution Time: 553.309 ms

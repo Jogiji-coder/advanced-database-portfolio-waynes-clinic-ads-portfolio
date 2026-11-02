@@ -1,0 +1,60 @@
+-- E4 Critical-result worklist, last 7 days (Q5)
+-- Variant 1: No index on resulted_at
+-- Median execution time over 7 runs: 25.208 ms
+
+SELECT r.resulted_at, p.mrn, p.last_name, t.test_name, r.result_value, d.last_name AS doctor
+FROM lab_result r
+JOIN lab_order lo  ON lo.lab_order_id = r.lab_order_id
+JOIN appointment a ON a.appointment_id = lo.appointment_id
+JOIN patient p     ON p.patient_id = a.patient_id
+JOIN doctor d      ON d.doctor_id = a.doctor_id
+JOIN lab_test t    ON t.test_code = r.test_code
+WHERE r.abnormal_flag = 'C' AND r.resulted_at >= TIMESTAMPTZ '2026-10-28' - interval '7 days'
+ORDER BY r.resulted_at DESC;
+
+Gather Merge  (cost=7401.58..7404.62 rows=26 width=55) (actual time=25.544..29.545 rows=52 loops=1)
+  Workers Planned: 2
+  Workers Launched: 2
+  Buffers: shared hit=4153
+  ->  Sort  (cost=6401.56..6401.59 rows=13 width=55) (actual time=19.356..19.362 rows=17 loops=3)
+        Sort Key: r.resulted_at DESC
+        Sort Method: quicksort  Memory: 28kB
+        Buffers: shared hit=4153
+        Worker 0:  Sort Method: quicksort  Memory: 25kB
+        Worker 1:  Sort Method: quicksort  Memory: 26kB
+        ->  Hash Join  (cost=2.69..6401.32 rows=13 width=55) (actual time=18.943..19.316 rows=17 loops=3)
+              Hash Cond: ((r.test_code)::text = (t.test_code)::text)
+              Buffers: shared hit=4135
+              ->  Nested Loop  (cost=1.28..6399.87 rows=13 width=41) (actual time=18.826..19.191 rows=17 loops=3)
+                    Buffers: shared hit=4028
+                    ->  Nested Loop  (cost=1.14..6397.75 rows=13 width=39) (actual time=18.817..19.156 rows=17 loops=3)
+                          Buffers: shared hit=3923
+                          ->  Nested Loop  (cost=0.84..6393.67 rows=13 width=25) (actual time=18.806..19.062 rows=17 loops=3)
+                                Buffers: shared hit=3766
+                                ->  Nested Loop  (cost=0.42..6385.30 rows=13 width=25) (actual time=18.788..18.987 rows=17 loops=3)
+                                      Buffers: shared hit=3557
+                                      ->  Parallel Seq Scan on lab_result r  (cost=0.00..6277.29 rows=13 width=25) (actual time=18.769..18.921 rows=17 loops=3)
+                                            Filter: ((abnormal_flag = 'C'::bpchar) AND (resulted_at >= ('2026-10-28 00:00:00-04'::timestamp with time zone - '7 days'::interval)))
+                                            Rows Removed by Filter: 133893
+                                            Buffers: shared hit=3348
+                                      ->  Index Scan using lab_order_pkey on lab_order lo  (cost=0.42..8.31 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=52)
+                                            Index Cond: (lab_order_id = r.lab_order_id)
+                                            Buffers: shared hit=209
+                                ->  Index Scan using appointment_pkey on appointment a  (cost=0.42..0.64 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=52)
+                                      Index Cond: (appointment_id = lo.appointment_id)
+                                      Buffers: shared hit=209
+                          ->  Index Scan using patient_pkey on patient p  (cost=0.29..0.31 rows=1 width=22) (actual time=0.005..0.005 rows=1 loops=52)
+                                Index Cond: (patient_id = a.patient_id)
+                                Buffers: shared hit=157
+                    ->  Index Scan using doctor_pkey on doctor d  (cost=0.14..0.16 rows=1 width=10) (actual time=0.001..0.001 rows=1 loops=52)
+                          Index Cond: (doctor_id = a.doctor_id)
+                          Buffers: shared hit=105
+              ->  Hash  (cost=1.18..1.18 rows=18 width=22) (actual time=0.026..0.026 rows=18 loops=3)
+                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                    Buffers: shared hit=3
+                    ->  Seq Scan on lab_test t  (cost=0.00..1.18 rows=18 width=22) (actual time=0.011..0.014 rows=18 loops=3)
+                          Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=58
+Planning Time: 0.916 ms
+Execution Time: 29.590 ms
