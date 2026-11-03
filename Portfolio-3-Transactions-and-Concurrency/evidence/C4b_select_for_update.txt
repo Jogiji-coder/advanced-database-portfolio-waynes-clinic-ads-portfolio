@@ -1,0 +1,22 @@
+# C4b  Fix 1 - pessimistic locking with SELECT ... FOR UPDATE
+# Same race, but each pharmacist locks the medication row when reading it.
+
+      34 ms  [A] BEGIN
+      35 ms  [B] BEGIN
+      35 ms  [A] SELECT stock_on_hand FROM medication WHERE ... FOR UPDATE
+      36 ms  [A]    -> stock_on_hand = 10
+      36 ms  [B] SELECT stock_on_hand FROM medication WHERE ... FOR UPDATE
+     437 ms  [B]    .. ... BLOCKED - waiting for a lock held by another session
+     444 ms  [MONITOR]    pg_stat_activity + pg_locks:
+                           A: pid 8501, idle in transaction, wait=Client/ClientRead, blocked_by=- | SELECT stock_on_hand FROM medication WHERE medication_id = $
+                           B: pid 8502, active, wait=Lock/transactionid, blocked_by=A | SELECT stock_on_hand FROM medication WHERE medication_id = $
+                             lock WAITING: B ShareLock on transactionid 3923
+                             lock GRANTED: A ExclusiveLock on transactionid 3923
+     444 ms  [A] UPDATE medication SET stock_on_hand = 7  -- 10 - 3
+     445 ms  [A]    -> UPDATE 1
+     445 ms  [A] COMMIT
+     447 ms  [B]    -> stock_on_hand = 7   (unblocked after 410 ms)
+     447 ms  [B] UPDATE medication SET stock_on_hand = 3  -- 7 - 4
+     448 ms  [B]    -> UPDATE 1
+     448 ms  [B] COMMIT
+     449 ms  [RESULT] Final stock 3. B was made to wait until A committed, then read the new value (7).

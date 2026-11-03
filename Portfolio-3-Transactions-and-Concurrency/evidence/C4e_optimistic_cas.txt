@@ -1,0 +1,17 @@
+# C4e  Fix 4 - optimistic concurrency control (compare-and-set)
+# No locks held while the pharmacist thinks. The UPDATE only succeeds if the value is still what was read.
+
+      22 ms  [A] SELECT stock_on_hand ...  -- reads 10
+      24 ms  [A]    -> stock_on_hand = 10
+      24 ms  [B] SELECT stock_on_hand ...  -- reads 10
+      25 ms  [B]    -> stock_on_hand = 10
+      25 ms  [A] UPDATE medication SET stock_on_hand = 7 WHERE ... AND stock_on_hand = 10
+      27 ms  [A]    -> UPDATE 1
+      27 ms  [B] UPDATE medication SET stock_on_hand = 6 WHERE ... AND stock_on_hand = 10
+      27 ms  [B]    -> UPDATE 0
+      27 ms  [NOTE] # B updated 0 rows -> someone changed the stock since B read it. B re-reads and tries again.
+      27 ms  [B] SELECT stock_on_hand ...  -- re-read
+      28 ms  [B]    -> stock_on_hand = 7
+      28 ms  [B] UPDATE medication SET stock_on_hand = 3 WHERE ... AND stock_on_hand = 7
+      29 ms  [B]    -> UPDATE 1
+      29 ms  [RESULT] Final stock 3. The conflict was detected by the WHERE clause (UPDATE 0) without any waiting.

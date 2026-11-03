@@ -1,0 +1,23 @@
+# C4d  Fix 3 - REPEATABLE READ detects the conflict (first-updater-wins)
+# Same read-modify-write code as C4a, but both transactions run at REPEATABLE READ.
+
+      26 ms  [A] BEGIN ISOLATION LEVEL REPEATABLE READ
+      26 ms  [B] BEGIN ISOLATION LEVEL REPEATABLE READ
+      27 ms  [A] SELECT stock_on_hand ...
+      28 ms  [A]    -> stock_on_hand = 10
+      28 ms  [B] SELECT stock_on_hand ...
+      29 ms  [B]    -> stock_on_hand = 10
+      29 ms  [A] UPDATE ... SET stock_on_hand = 7
+      30 ms  [A]    -> UPDATE 1
+      30 ms  [A] COMMIT
+      32 ms  [B] UPDATE ... SET stock_on_hand = 6
+      32 ms  [B]    !! ERROR 40001: could not serialize access due to concurrent update
+      32 ms  [B] ROLLBACK
+      33 ms  [NOTE] # B's application catches SQLSTATE 40001 and retries the whole transaction:
+      33 ms  [B] BEGIN ISOLATION LEVEL REPEATABLE READ
+      33 ms  [B] SELECT stock_on_hand ...  -- retry
+      33 ms  [B]    -> stock_on_hand = 7
+      33 ms  [B] UPDATE ... SET stock_on_hand = 3
+      33 ms  [B]    -> UPDATE 1
+      33 ms  [B] COMMIT
+      34 ms  [RESULT] Final stock 3. The stale write was rejected with 40001 instead of being lost; the retry saw the committed value.

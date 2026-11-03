@@ -1,0 +1,12 @@
+# C2  Non-repeatable read - REPEATABLE READ
+# Doctor A reads Tyrone Jackson's INR twice in one transaction; meanwhile the lab (B) corrects it.
+
+      28 ms  [A] BEGIN ISOLATION LEVEL REPEATABLE READ
+      28 ms  [A] SELECT result_value FROM lab_result WHERE lab_result_id = 21  -- 1st read
+      30 ms  [A]    -> result_value = 2.100
+      30 ms  [B] UPDATE lab_result SET result_value = 3.6 WHERE lab_result_id = 21  -- autocommit
+      34 ms  [B]    -> UPDATE 1
+      34 ms  [A] SELECT result_value FROM lab_result WHERE lab_result_id = 21  -- 2nd read
+      35 ms  [A]    -> result_value = 2.100
+      35 ms  [A] COMMIT
+      35 ms  [RESULT] Both reads returned result_value = 2.100: REPEATABLE READ uses one snapshot for the whole transaction, so A's view is stable even though B committed.

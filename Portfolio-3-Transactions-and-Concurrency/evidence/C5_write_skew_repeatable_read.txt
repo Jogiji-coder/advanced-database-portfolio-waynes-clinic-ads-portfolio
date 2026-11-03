@@ -1,0 +1,16 @@
+# C5  Write skew - the on-call rule - REPEATABLE READ
+# Rule: at least one doctor must stay on call. Dr Fairbanks (A) and Dr Whitfield (B) each check that 2 are on call, then each signs off.
+
+      26 ms  [A] BEGIN ISOLATION LEVEL REPEATABLE READ
+      26 ms  [B] BEGIN ISOLATION LEVEL REPEATABLE READ
+      26 ms  [A] SELECT count(*) FROM on_call_roster WHERE on_call  -- rule check
+      28 ms  [A]    -> on_call_now = 2
+      28 ms  [B] SELECT count(*) FROM on_call_roster WHERE on_call  -- rule check
+      29 ms  [B]    -> on_call_now = 2
+      29 ms  [A] UPDATE on_call_roster SET on_call = false WHERE doctor_id = 9
+      30 ms  [A]    -> UPDATE 1
+      30 ms  [B] UPDATE on_call_roster SET on_call = false WHERE doctor_id = 4
+      30 ms  [B]    -> UPDATE 1
+      30 ms  [A] COMMIT
+      31 ms  [B] COMMIT
+      33 ms  [RESULT] WRITE SKEW: both checks passed against the same snapshot, each updated a DIFFERENT row, so no write-write conflict was seen. Nobody is on call - the invariant is broken.

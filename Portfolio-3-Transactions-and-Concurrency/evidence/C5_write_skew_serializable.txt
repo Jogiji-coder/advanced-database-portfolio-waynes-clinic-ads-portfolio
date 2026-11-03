@@ -1,0 +1,24 @@
+# C5  Write skew - the on-call rule - SERIALIZABLE
+# Rule: at least one doctor must stay on call. Dr Fairbanks (A) and Dr Whitfield (B) each check that 2 are on call, then each signs off.
+
+      24 ms  [A] BEGIN ISOLATION LEVEL SERIALIZABLE
+      24 ms  [B] BEGIN ISOLATION LEVEL SERIALIZABLE
+      25 ms  [A] SELECT count(*) FROM on_call_roster WHERE on_call  -- rule check
+      26 ms  [A]    -> on_call_now = 2
+      26 ms  [B] SELECT count(*) FROM on_call_roster WHERE on_call  -- rule check
+      27 ms  [B]    -> on_call_now = 2
+      27 ms  [A] UPDATE on_call_roster SET on_call = false WHERE doctor_id = 9
+      28 ms  [A]    -> UPDATE 1
+      28 ms  [B] UPDATE on_call_roster SET on_call = false WHERE doctor_id = 4
+      28 ms  [B]    -> UPDATE 1
+      28 ms  [A] COMMIT
+      29 ms  [B] COMMIT
+      30 ms  [B]    !! ERROR 40001: could not serialize access due to read/write dependencies among transactions
+      30 ms  [B] ROLLBACK
+      30 ms  [NOTE] # B's application retries after SQLSTATE 40001:
+      30 ms  [B] BEGIN ISOLATION LEVEL SERIALIZABLE
+      30 ms  [B] SELECT count(*) FROM on_call_roster WHERE on_call  -- re-check
+      31 ms  [B]    -> on_call_now = 1
+      31 ms  [NOTE] # Only 1 doctor on call -> the application refuses B's request and ends the transaction.
+      31 ms  [B] ROLLBACK
+      31 ms  [RESULT] 1 doctor still on call. Serializable Snapshot Isolation tracked the read/write dependencies and aborted B (40001); the retry saw the truth.

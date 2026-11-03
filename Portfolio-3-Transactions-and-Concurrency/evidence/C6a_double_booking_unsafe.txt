@@ -1,0 +1,17 @@
+# C6a  Double booking - 'check, then insert' in application code
+# Two receptionists book Dr Okafor's Wed 04 Nov 09:00 slot at the same moment, using a table with no exclusion constraint.
+
+      22 ms  [A] BEGIN
+      22 ms  [B] BEGIN
+      22 ms  [A] SELECT count(*) FROM appointment_unsafe WHERE doctor_id = 1 AND <overlaps slot>
+      23 ms  [A]    -> clashes = 0
+      23 ms  [B] SELECT count(*) FROM appointment_unsafe WHERE doctor_id = 1 AND <overlaps slot>
+      24 ms  [B]    -> clashes = 0
+      24 ms  [NOTE] # Both see 0 clashes, so both applications decide the slot is free.
+      24 ms  [A] INSERT INTO appointment_unsafe ... patient 5
+      26 ms  [A]    -> INSERT 0 1
+      26 ms  [B] INSERT INTO appointment_unsafe ... patient 7
+      28 ms  [B]    -> INSERT 0 1
+      28 ms  [A] COMMIT
+      29 ms  [B] COMMIT
+      30 ms  [RESULT] DOUBLE BOOKING: 2 patients now hold the same slot. Neither transaction could see the other's uncommitted insert, and nothing in the database forbade the result.

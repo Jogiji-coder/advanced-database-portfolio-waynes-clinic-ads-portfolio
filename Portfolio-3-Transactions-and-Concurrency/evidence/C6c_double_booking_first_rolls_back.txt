@@ -1,0 +1,13 @@
+# C6c  ... and if the first booking is abandoned, the waiter gets the slot
+# Receptionist A starts a booking but the patient hangs up, so A rolls back.
+
+      24 ms  [A] BEGIN
+      24 ms  [B] BEGIN
+      25 ms  [A] SELECT book_appointment(patient 5, doctor 1, 'Wed 04 Nov 09:00')
+      32 ms  [A]    -> appointment_id = 591721
+      32 ms  [B] SELECT book_appointment(patient 7, doctor 1, 'Wed 04 Nov 09:00')
+     433 ms  [B]    .. ... BLOCKED - waiting for a lock held by another session
+     433 ms  [A] ROLLBACK
+     435 ms  [B]    -> appointment_id = 591722   (unblocked after 402 ms)
+     435 ms  [B] COMMIT
+     437 ms  [RESULT] Patient 7 holds the slot. Waiting (rather than failing fast) was correct: the conflicting row never became visible.

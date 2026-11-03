@@ -1,0 +1,16 @@
+# C4a  Lost update - read-modify-write at READ COMMITTED
+# Two pharmacists dispense insulin at the same time: A takes 3 pens, B takes 4. Stock starts at 10.
+
+      24 ms  [A] BEGIN
+      24 ms  [B] BEGIN
+      25 ms  [A] SELECT stock_on_hand FROM medication WHERE generic_name = 'Insulin Glargine'
+      25 ms  [A]    -> stock_on_hand = 10
+      26 ms  [B] SELECT stock_on_hand FROM medication WHERE generic_name = 'Insulin Glargine'
+      26 ms  [B]    -> stock_on_hand = 10
+      26 ms  [A] UPDATE medication SET stock_on_hand = 7  -- 10 - 3, computed by the application
+      27 ms  [A]    -> UPDATE 1
+      27 ms  [A] COMMIT
+      28 ms  [B] UPDATE medication SET stock_on_hand = 6  -- 10 - 4, based on its stale read
+      29 ms  [B]    -> UPDATE 1
+      29 ms  [B] COMMIT
+      30 ms  [RESULT] LOST UPDATE: final stock is 6, but 7 pens were dispensed from 10 so it must be 3. A's update was silently overwritten.

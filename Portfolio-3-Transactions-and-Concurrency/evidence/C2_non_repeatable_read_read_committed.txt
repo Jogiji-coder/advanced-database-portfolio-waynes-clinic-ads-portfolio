@@ -1,0 +1,12 @@
+# C2  Non-repeatable read - READ COMMITTED
+# Doctor A reads Tyrone Jackson's INR twice in one transaction; meanwhile the lab (B) corrects it.
+
+      23 ms  [A] BEGIN ISOLATION LEVEL READ COMMITTED
+      24 ms  [A] SELECT result_value FROM lab_result WHERE lab_result_id = 21  -- 1st read
+      25 ms  [A]    -> result_value = 2.100
+      25 ms  [B] UPDATE lab_result SET result_value = 3.6 WHERE lab_result_id = 21  -- autocommit
+      29 ms  [B]    -> UPDATE 1
+      29 ms  [A] SELECT result_value FROM lab_result WHERE lab_result_id = 21  -- 2nd read
+      30 ms  [A]    -> result_value = 3.600
+      30 ms  [A] COMMIT
+      30 ms  [RESULT] NON-REPEATABLE READ: the same query in one transaction returned result_value = 2.100 then result_value = 3.600. READ COMMITTED takes a new snapshot for every statement.

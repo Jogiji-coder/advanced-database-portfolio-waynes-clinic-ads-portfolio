@@ -1,0 +1,116 @@
+SET
+SET
+================================================================
+T1  COMMIT - register a walk-in patient AND book her first visit as one unit
+================================================================
+BEGIN
+ txid 
+------
+ 3900
+
+INSERT 0 1
+Inside the transaction both rows exist:
+    mrn     |    patient     | appointment_id |  status   |       slot       
+------------+----------------+----------------+-----------+------------------
+ WCB0099001 | Renee Calloway |         591714 | Scheduled | Tue 03 Nov 09:20
+
+COMMIT
+After COMMIT, a brand-new connection (\c) can see them - the change is durable and visible:
+You are now connected to database "waynes_clinic" as user "postgres".
+SET
+SET
+    mrn     | created_by_txid | appointment_id |  status   
+------------+-----------------+----------------+-----------
+ WCB0099001 |            3900 |         591714 | Scheduled
+
+
+================================================================
+T2  EXPLICIT ROLLBACK - a pharmacist keys the wrong quantity and cancels
+================================================================
+   generic_name   | stock_before 
+------------------+--------------
+ Insulin Glargine |        41892
+
+BEGIN
+UPDATE 1
+INSERT 0 1
+Uncommitted state seen by this session:
+ stock_inside_txn | movements_inside_txn 
+------------------+----------------------
+            41792 |                    1
+
+ROLLBACK
+After ROLLBACK both the stock change and the audit row are gone:
+ stock_after_rollback | movements_after_rollback 
+----------------------+--------------------------
+                41892 |                        0
+
+
+================================================================
+T3  ATOMICITY ON ERROR - diagnosis + prescription where one line breaks a rule
+    Sunday 25 Oct: James Holloway (allergic to penicillin) walks into the Emergency
+    Department with a sore throat and is checked in. The doctor stores a diagnosis
+    then prescribes Penicillin V. The allergy trigger raises WC001.
+================================================================
+INSERT 0 1
+BEGIN
+ diagnosis_id 
+--------------
+       595284
+
+INSERT 0 1
+psql:sql/01_commit_rollback_savepoint.sql:72: ERROR:  Allergy conflict: patient 1 is allergic to Penicillin V Potassium (Severe reaction: Anaphylaxis)
+HINT:  Choose an alternative medication or record a clinical override.
+The transaction is now in the ABORTED state - every further command is refused:
+psql:sql/01_commit_rollback_savepoint.sql:74: ERROR:  current transaction is aborted, commands ignored until end of transaction block
+ROLLBACK
+(psql printed ROLLBACK: COMMIT of a failed transaction is a rollback.)
+Nothing from the transaction survived - not even the diagnosis or the status change:
+ appointment_id |  status   | diagnoses | prescriptions 
+----------------+-----------+-----------+---------------
+         591715 | CheckedIn |         0 |             0
+
+
+================================================================
+T4  SAVEPOINT - keep the diagnosis, undo only the unsafe prescription line
+================================================================
+BEGIN
+ diagnosis_id 
+--------------
+       595285
+
+INSERT 0 1
+SAVEPOINT
+psql:sql/01_commit_rollback_savepoint.sql:93: ERROR:  Allergy conflict: patient 1 is allergic to Penicillin V Potassium (Severe reaction: Anaphylaxis)
+HINT:  Choose an alternative medication or record a clinical override.
+ROLLBACK
+Rolled back to the savepoint - the transaction is healthy again. Prescribe the alternative:
+INSERT 0 1
+RELEASE
+COMMIT
+Committed: the diagnosis and the azithromycin line are stored; penicillin is not:
+  status   | icd10_code |  prescribed  
+-----------+------------+--------------
+ Completed | J02.9      | Azithromycin
+
+
+================================================================
+T5  WHAT IS *NOT* ROLLED BACK - sequence values
+================================================================
+ appointment_seq_before 
+------------------------
+                 591715
+
+BEGIN
+ id_used_then_discarded 
+------------------------
+                 591716
+
+INSERT 0 1
+ROLLBACK
+ appointment_seq_after 
+-----------------------
+                591716
+
+The sequence advanced even though the row was rolled back: identity values can have
+gaps. Ids must never be used as a "count" of appointments or as an invoice number.

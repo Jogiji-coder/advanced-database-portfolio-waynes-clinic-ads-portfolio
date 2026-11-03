@@ -1,0 +1,12 @@
+# C1  Dirty read? - READ UNCOMMITTED in PostgreSQL
+# Lab scientist A types a potassium result but has not committed. Doctor B reads it at READ UNCOMMITTED.
+
+      27 ms  [A] BEGIN
+      27 ms  [A] UPDATE lab_result SET result_value = 6.9 WHERE lab_result_id = 10  -- not committed
+      31 ms  [A]    -> UPDATE 1
+      31 ms  [B] BEGIN ISOLATION LEVEL READ UNCOMMITTED
+      31 ms  [B] SELECT result_value, abnormal_flag FROM lab_result WHERE lab_result_id = 10
+      33 ms  [B]    -> result_value=3.300, abnormal_flag=L
+      33 ms  [B] COMMIT
+      33 ms  [A] ROLLBACK
+      34 ms  [RESULT] B saw the last COMMITTED value (3.3), never A's uncommitted 6.9. PostgreSQL implements READ UNCOMMITTED as READ COMMITTED, so dirty reads cannot happen at any level.

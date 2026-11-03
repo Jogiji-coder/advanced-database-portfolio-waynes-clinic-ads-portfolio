@@ -1,0 +1,15 @@
+# C8  MVCC - readers never block writers, writers never block readers
+# A holds a REPEATABLE READ snapshot open; B updates and commits; A still sees the old row version.
+
+      42 ms  [A] BEGIN ISOLATION LEVEL REPEATABLE READ
+      43 ms  [A] SELECT ctid, xmin, xmax, stock_on_hand FROM medication WHERE ...
+      44 ms  [A]    -> ctid=(0,72), xmin=3961, xmax=0, stock_on_hand=10
+      44 ms  [B] UPDATE medication SET stock_on_hand = 99 WHERE ... RETURNING ctid, xmin  -- no waiting
+      48 ms  [B]    -> ctid=(0,73), xmin=3962
+      48 ms  [A] SELECT ctid, xmin, xmax, stock_on_hand ...  -- same snapshot
+      48 ms  [A]    -> ctid=(0,72), xmin=3961, xmax=3962, stock_on_hand=10
+      48 ms  [NOTE] # Session C (a new snapshot) sees the version B created:
+      48 ms  [C] SELECT ctid, xmin, xmax, stock_on_hand ...  -- new snapshot
+      49 ms  [C]    -> ctid=(0,73), xmin=3962, xmax=0, stock_on_hand=99
+      49 ms  [A] COMMIT
+      50 ms  [RESULT] Two physical versions of the row existed at once (different ctid). The old version's xmax was set to B's transaction id, but A's snapshot predates B, so A kept reading it. VACUUM later removes it.

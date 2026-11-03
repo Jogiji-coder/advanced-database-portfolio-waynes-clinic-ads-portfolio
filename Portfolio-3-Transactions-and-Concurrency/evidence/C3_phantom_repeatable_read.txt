@@ -1,0 +1,12 @@
+# C3  Phantom read - REPEATABLE READ
+# Manager A counts Dr Raman's bookings for next Wednesday twice; receptionist B books a new slot in between.
+
+      25 ms  [A] BEGIN ISOLATION LEVEL REPEATABLE READ
+      26 ms  [A] SELECT count(*) ... doctor 3 on 2026-11-04  -- 1st count
+      28 ms  [A]    -> bookings = 7
+      28 ms  [B] SELECT book_appointment(5, 3, '2026-11-04 09:00')  -- autocommit
+      33 ms  [B]    -> new_appointment = 591718
+      33 ms  [A] SELECT count(*) ... doctor 3 on 2026-11-04  -- 2nd count
+      34 ms  [A]    -> bookings = 7
+      34 ms  [A] COMMIT
+      34 ms  [RESULT] No phantom (bookings = 7 both times). PostgreSQL's REPEATABLE READ is snapshot isolation, which also prevents phantoms - stricter than the SQL standard requires.

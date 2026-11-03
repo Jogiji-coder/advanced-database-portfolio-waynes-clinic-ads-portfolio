@@ -1,0 +1,23 @@
+# C7b  Deadlock prevention - always lock in the same order
+# Both transfers first lock BOTH rows with ORDER BY medication_id FOR UPDATE.
+
+      26 ms  [A] BEGIN
+      26 ms  [B] BEGIN
+      26 ms  [A] SELECT ... WHERE medication_id IN (insulin, albuterol) ORDER BY medication_id FOR UPDATE
+      28 ms  [A]    -> medication_id=7, stock_on_hand=495
+                        medication_id=15, stock_on_hand=505
+      28 ms  [B] SELECT ... WHERE medication_id IN (insulin, albuterol) ORDER BY medication_id FOR UPDATE
+     428 ms  [B]    .. ... BLOCKED - waiting for a lock held by another session
+     428 ms  [A] UPDATE insulin -5
+     430 ms  [A]    -> UPDATE 1
+     430 ms  [A] UPDATE albuterol +5
+     431 ms  [A]    -> UPDATE 1
+     431 ms  [A] COMMIT
+     433 ms  [B]    -> medication_id=7, stock_on_hand=500
+                        medication_id=15, stock_on_hand=500   (unblocked after 405 ms)
+     433 ms  [B] UPDATE albuterol -5
+     434 ms  [B]    -> UPDATE 1
+     434 ms  [B] UPDATE insulin +5
+     434 ms  [B]    -> UPDATE 1
+     434 ms  [B] COMMIT
+     435 ms  [RESULT] No deadlock: B simply queued behind A. A global lock order turns a possible cycle into a queue. clinic.dispense_prescription() uses the same rule.

@@ -1,0 +1,24 @@
+# C9  Durability - crash the server, then recover from the WAL
+# A commits, B does not; the server is killed with an immediate shutdown (no checkpoint) and restarted.
+
+      25 ms  [A] BEGIN
+      26 ms  [A] INSERT INTO stock_movement ... 'COMMITTED' RETURNING movement_id
+      28 ms  [A]    -> movement_id = 2
+      28 ms  [A] COMMIT
+      29 ms  [A] SELECT pg_current_wal_lsn() AS wal_lsn_after_commit
+      29 ms  [A]    -> wal_lsn_after_commit = 2/BBE8138
+      29 ms  [B] BEGIN
+      30 ms  [B] INSERT INTO stock_movement ... 'NOT committed'  -- left open
+      31 ms  [B]    -> movement_id = 3
+      31 ms  [NOTE] # Simulating a crash:  pg_ctlcluster 16 main stop -m immediate
+    6296 ms  [NOTE] # Server restarted and accepting connections after 6.1 s
+    6297 ms  [SERVER LOG]    PostgreSQL server log during restart:
+                              [8553] LOG:  database system was interrupted; last known up at 2026-10-28 22:15:04 UTC
+                              [8553] LOG:  database system was not properly shut down; automatic recovery in progress
+                              [8553] LOG:  redo starts at 1/E011C090
+                              [8553] LOG:  redo done at 2/BBE8230 system usage: CPU: user: 2.77 s, system: 0.36 s, elapsed: 3.15 s
+                              [8551] LOG:  checkpoint complete: wrote 16356 buffers (99.8%); 0 WAL file(s) added, 0 removed, 43 recycled; write=0.073 s, sync=0.385 s, total=0.473 s; sync files=228, longest=0.068 s, average=0.002 s; distance=715568 kB, estimate=715568 kB; lsn=2/BBE8258, redo lsn=2/BBE8258
+                              [8550] LOG:  database system is ready to accept connections
+    6311 ms  [A] SELECT reason, quantity FROM stock_movement WHERE reason LIKE 'Durability test%'
+    6313 ms  [A]    -> reason=Durability test 23:15:33: COMMITTED, quantity=-30
+    6313 ms  [RESULT] Only the committed row exists after the crash. The commit had been flushed to the WAL (synchronous_commit = on), so redo replayed it; B's unfinished transaction was never committed, so its row is invisible and later vacuumed away.

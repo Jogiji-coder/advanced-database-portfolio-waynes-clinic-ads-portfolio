@@ -1,0 +1,13 @@
+# C4c  Fix 2 - let the database do the arithmetic (atomic UPDATE)
+# UPDATE ... SET stock = stock - n. B's update re-reads the row after A commits.
+
+      23 ms  [A] BEGIN
+      24 ms  [B] BEGIN
+      24 ms  [A] UPDATE medication SET stock_on_hand = stock_on_hand - 3 WHERE ...
+      25 ms  [A]    -> UPDATE 1
+      25 ms  [B] UPDATE medication SET stock_on_hand = stock_on_hand - 4 WHERE ...
+     426 ms  [B]    .. ... BLOCKED - waiting for a lock held by another session
+     426 ms  [A] COMMIT
+     427 ms  [B]    -> UPDATE 1   (unblocked after 402 ms)
+     428 ms  [B] COMMIT
+     429 ms  [RESULT] Final stock 3. The row lock taken by A's UPDATE queued B; B then re-evaluated stock_on_hand on the newly committed version (PostgreSQL's EvalPlanQual re-check).

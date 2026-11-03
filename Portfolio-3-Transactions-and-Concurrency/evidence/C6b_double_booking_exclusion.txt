@@ -1,0 +1,21 @@
+# C6b  Double booking prevented by the EXCLUDE constraint
+# Same race on the real appointment table via book_appointment(). Slot: Dr Okafor Wed 04 Nov 09:00.
+
+      34 ms  [A] BEGIN
+      34 ms  [B] BEGIN
+      34 ms  [A] SELECT book_appointment(patient 5, doctor 1, 'Wed 04 Nov 09:00')
+      39 ms  [A]    -> appointment_id = 591719
+      39 ms  [B] SELECT book_appointment(patient 7, doctor 1, 'Wed 04 Nov 09:00')
+     439 ms  [B]    .. ... BLOCKED - waiting for a lock held by another session
+     444 ms  [MONITOR]    pg_stat_activity + pg_locks:
+                           A: pid 8519, idle in transaction, wait=Client/ClientRead, blocked_by=- | SELECT book_appointment(5, 1, $1, 'Receptionist A') AS appoi
+                           B: pid 8520, active, wait=Lock/transactionid, blocked_by=A | SELECT book_appointment(7, 1, $1, 'Receptionist B') AS appoi
+                             lock WAITING: B ShareLock on transactionid 3945
+                             lock GRANTED: A ExclusiveLock on transactionid 3945
+                             lock GRANTED: B ExclusiveLock on transactionid 3947
+                             lock GRANTED: B ExclusiveLock on transactionid 3948
+     444 ms  [NOTE] # B cannot know yet whether the slot is taken: it depends on whether A commits. It waits on A's transaction id.
+     444 ms  [A] COMMIT
+     446 ms  [B]    !! ERROR 23P01: Slot taken: doctor 1 already has an appointment at 2026-11-04 09:00:00   (after 407 ms)
+     446 ms  [B] ROLLBACK
+     447 ms  [RESULT] 1 booking for the slot. The constraint is enforced by the GiST index itself, so the check and the insert are one atomic step - there is no race window.

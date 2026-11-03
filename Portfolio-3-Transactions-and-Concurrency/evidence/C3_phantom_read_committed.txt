@@ -1,0 +1,12 @@
+# C3  Phantom read - READ COMMITTED
+# Manager A counts Dr Raman's bookings for next Wednesday twice; receptionist B books a new slot in between.
+
+      28 ms  [A] BEGIN ISOLATION LEVEL READ COMMITTED
+      29 ms  [A] SELECT count(*) ... doctor 3 on 2026-11-04  -- 1st count
+      31 ms  [A]    -> bookings = 7
+      31 ms  [B] SELECT book_appointment(5, 3, '2026-11-04 09:00')  -- autocommit
+      38 ms  [B]    -> new_appointment = 591717
+      38 ms  [A] SELECT count(*) ... doctor 3 on 2026-11-04  -- 2nd count
+      38 ms  [A]    -> bookings = 8
+      38 ms  [A] COMMIT
+      39 ms  [RESULT] PHANTOM: a row that did not exist at the first count appeared (bookings = 7 -> bookings = 8).

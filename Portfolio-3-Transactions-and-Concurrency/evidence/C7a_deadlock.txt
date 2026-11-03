@@ -1,0 +1,30 @@
+# C7a  Deadlock - two transfers lock the same rows in opposite order
+# A moves stock insulin -> albuterol; B moves albuterol -> insulin. deadlock_timeout = 1s.
+
+      30 ms  [A] BEGIN
+      30 ms  [B] BEGIN
+      31 ms  [A] UPDATE medication ... WHERE generic_name = 'Insulin Glargine'  -- locks row 1
+      32 ms  [A]    -> UPDATE 1
+      32 ms  [B] UPDATE medication ... WHERE generic_name = 'Albuterol'  -- locks row 2
+      33 ms  [B]    -> UPDATE 1
+      33 ms  [A] UPDATE medication ... WHERE generic_name = 'Albuterol'  -- needs row 2
+     434 ms  [A]    .. ... BLOCKED - waiting for a lock held by another session
+     440 ms  [MONITOR]    pg_stat_activity + pg_locks:
+                           A: pid 8526, active, wait=Lock/transactionid, blocked_by=B | UPDATE medication SET stock_on_hand = stock_on_hand + 5 WHER
+                           B: pid 8527, idle in transaction, wait=Client/ClientRead, blocked_by=- | UPDATE medication SET stock_on_hand = stock_on_hand - 5 WHER
+                             lock WAITING: A ShareLock on transactionid 3958
+                             lock GRANTED: A ExclusiveLock on transactionid 3957
+                             lock GRANTED: B ExclusiveLock on transactionid 3958
+     440 ms  [B] UPDATE medication ... WHERE generic_name = 'Insulin Glargine'  -- needs row 1: cycle!
+     841 ms  [B]    .. ... BLOCKED - waiting for a lock held by another session
+    1034 ms  [A]    !! ERROR 40P01: deadlock detected   (after 1,001 ms)
+    1035 ms  [B]    -> UPDATE 1   (unblocked after 594 ms)
+    1035 ms  [A] ROLLBACK
+    1035 ms  [B] COMMIT
+    1037 ms  [SERVER LOG]    PostgreSQL server log:
+                              [8526] postgres@waynes_clinic ERROR:  deadlock detected
+                              [8526] postgres@waynes_clinic DETAIL:  Process 8526 waits for ShareLock on transaction 3958; blocked by process 8527.
+                              	Process 8527 waits for ShareLock on transaction 3957; blocked by process 8526.
+                              	Process 8526: UPDATE medication SET stock_on_hand = stock_on_hand + 5 WHERE medication_id = $1
+                              	Process 8527: UPDATE medication SET stock_on_hand = stock_on_hand + 5 WHERE medication_id = $1
+    1037 ms  [RESULT] PostgreSQL's deadlock detector found the wait-for cycle after deadlock_timeout and aborted session A (40P01) so that B could finish. A's work is lost and must be retried.
