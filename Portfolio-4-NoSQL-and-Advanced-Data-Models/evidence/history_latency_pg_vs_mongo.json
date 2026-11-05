@@ -1,0 +1,20 @@
+{
+  "patients_sampled": 300,
+  "postgresql_view_rows": {
+    "mean_ms": 1.295,
+    "median_ms": 1.251,
+    "p95_ms": 2.026,
+    "mean_items": 44.1
+  },
+  "mongodb_encounter_documents": {
+    "mean_ms": 0.8,
+    "median_ms": 0.752,
+    "p95_ms": 1.106,
+    "mean_items": 12.2
+  },
+  "storage": {
+    "postgresql_clinical_tables_incl_indexes_MB": 487.6,
+    "mongodb_encounters_storage_plus_indexes_MB": 154.0,
+    "mongodb_encounters_uncompressed_MB": 435.7
+  }
+}

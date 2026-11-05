@@ -1,0 +1,15 @@
+from_name,to_name,severity,effect
+Warfarin,Ibuprofen,Major,Increased bleeding risk (anticoagulant + NSAID)
+Sertraline,Sumatriptan,Major,Risk of serotonin syndrome
+Lisinopril,Losartan,Major,Dual RAAS blockade: hyperkalaemia and kidney injury
+Warfarin,Azithromycin,Moderate,May raise INR
+Warfarin,Acetaminophen,Moderate,Regular high doses may raise INR
+Warfarin,Sertraline,Moderate,Increased bleeding risk (SSRI + anticoagulant)
+Sertraline,Ibuprofen,Moderate,Increased GI bleeding risk (SSRI + NSAID)
+Lisinopril,Ibuprofen,Moderate,NSAID reduces antihypertensive effect; kidney risk
+Losartan,Ibuprofen,Moderate,NSAID reduces antihypertensive effect; kidney risk
+Prednisone,Ibuprofen,Moderate,Increased GI ulcer and bleeding risk
+Metformin,Prednisone,Moderate,Corticosteroid raises blood glucose
+Insulin Glargine,Prednisone,Moderate,Corticosteroid raises blood glucose
+Oxycodone,Sertraline,Moderate,Serotonergic opioid: serotonin syndrome risk
+Levothyroxine,Omeprazole,Minor,PPI may reduce levothyroxine absorption

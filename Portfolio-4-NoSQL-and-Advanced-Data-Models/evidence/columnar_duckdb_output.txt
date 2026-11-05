@@ -1,0 +1,60 @@
+Fact table: 401,731 lab results x 11 columns
+  CSV extract             35.7 MB
+  Parquet (ZSTD)           5.7 MB
+  PostgreSQL lab_result table incl. indexes (fewer columns, normalised): 51.9 MB
+
+Per-column compressed size inside the Parquet file (columnar storage + encoding):
+  resulted_at         2542 KB   (uncompressed    3139 KB, ratio  1.2x)
+  patient_id           689 KB   (uncompressed    3139 KB, ratio  4.6x)
+  result_value         547 KB   (uncompressed     596 KB, ratio  1.1x)
+  lab_result_id        432 KB   (uncompressed    3139 KB, ratio  7.3x)
+  doctor_id            379 KB   (uncompressed     400 KB, ratio  1.1x)
+  birth_year           346 KB   (uncompressed     348 KB, ratio  1.0x)
+  test_code            218 KB   (uncompressed     223 KB, ratio  1.0x)
+  department           145 KB   (uncompressed     199 KB, ratio  1.4x)
+  sex                   87 KB   (uncompressed     100 KB, ratio  1.2x)
+  abnormal_flag         76 KB   (uncompressed     100 KB, ratio  1.3x)
+  priority              59 KB   (uncompressed     100 KB, ratio  1.7x)
+
+Analytical query: monthly result count, abnormal % and mean value per test per department (2 years)
+  PostgreSQL, normalised row store (5-table join):    512.4 ms  -> 3331 groups
+  PostgreSQL, same denormalised table (row store):   254.6 ms
+  DuckDB on Parquet (columnar, vectorised):           80.3 ms  -> 3331 groups
+  columnar vs row store on identical data: 3.2x; vs the normalised operational schema: 6.4x
+
+DuckDB plan - note the Parquet scan reads only the 5 projected columns of 11:
+  ╭─ Summary ───────────╮
+  │ Total Time: 0.0535s │
+  │ Data Read:   3.6 MB │
+  ╰─────────────────────╯
+  ╭─ Projection ──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │ Projections: #0, #1, #2, results, abnormal_pct, mean_value                                                                │
+  │ 3,331 rows                                                                                                            0µs │
+  ╰─────────────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────────╯
+  ╭─ Hash Group By ─────────────────────────────────────────────┴─────────────────────────────────────────────────────────────╮
+  │ Groups: #0, #1, #2                                                                                                        │
+  │ Aggregates:                                                                                                               │
+  │ count_star(), count_star() FILTER (WHERE #1) Filter: #1, avg(#4)                                                          │
+  │ 3,331 rows                                                                                                         20.0ms │
+  ╰─────────────────────────────────────────────────────────────┒┎────────────────────────────────────────────────────────────╯
+  ╭─ Projection ────────────────────────────────────────────────┚┖────────────────────────────────────────────────────────────╮
+  │ Projections: month, test_code, department, abnormal_flag != 'N', result_value                                             │
+  │ 401,731 rows                                                                                                       70.0ms │
+  ╰─────────────────────────────────────────────────────────────┒┎────────────────────────────────────────────────────────────╯
+  ╭─ Table Scan ────────────────────────────────────────────────┚┖────────────────────────────────────────────────────────────╮
+  │ Function: READ_PARQUET                                                                                                    │
+  │ Projections: resulted_at, test_code, department, abnormal_flag, result_value                                              │
+  │ Total Files Read: 1                                                                                                       │
+  │ Filename(s):                                                                                                              │
+  │ /home/claude/waynes-clinic-ads-portfolio/Portfolio-4-NoSQL-and-Advanced-Data-Models/columnar-duckdb/data/lab_fact.parquet │
+  │ Row Groups Scanned: 4 / 4                                                                                                 │
+  │ 401,731 rows                                                                                                       10.0ms │
+  ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Sample output (General Medicine, HbA1c):
+  2025-01  HBA1C  General Medicine  332  64.5  6.84
+  2025-02  HBA1C  General Medicine  329  68.4  7.0
+  2025-03  HBA1C  General Medicine  284  69.4  6.98
+  2025-04  HBA1C  General Medicine  300  68.3  7.08
+  2025-05  HBA1C  General Medicine  352  66.2  6.92
+  2025-06  HBA1C  General Medicine  314  70.1  7.02

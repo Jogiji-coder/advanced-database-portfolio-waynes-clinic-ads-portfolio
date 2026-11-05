@@ -1,0 +1,35 @@
+{
+  "_id": 1,
+  "mrn": "WCB0000001",
+  "name": {
+    "first": "James",
+    "last": "Holloway"
+  },
+  "dateOfBirth": "1958-03-14 00:00:00",
+  "sex": "M",
+  "bloodGroup": "O+",
+  "contact": {
+    "phone": "410-555-0121",
+    "email": "j.holloway@mail.example"
+  },
+  "address": {
+    "street": "1204 Charles St",
+    "zip": "21201",
+    "city": "Baltimore",
+    "state": "MD"
+  },
+  "emergencyContact": {
+    "name": "Ruth Holloway",
+    "phone": "410-555-0161"
+  },
+  "allergies": [
+    {
+      "medicationId": 12,
+      "medication": "Penicillin V Potassium",
+      "reaction": "Anaphylaxis",
+      "severity": "Severe",
+      "recordedAt": "2018-04-02 04:00:00"
+    }
+  ],
+  "registeredAt": "2018-04-02 04:00:00"
+}

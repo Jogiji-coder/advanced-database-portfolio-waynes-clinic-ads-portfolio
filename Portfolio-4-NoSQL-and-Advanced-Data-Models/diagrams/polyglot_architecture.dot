@@ -1,0 +1,34 @@
+digraph Polyglot {
+  graph [rankdir=LR, fontname="Inter", nodesep=0.35, ranksep=1.1, pad=0.4, bgcolor="white",
+         label=<<B>Wayne's Clinic Baltimore — polyglot persistence architecture</B><BR/><FONT POINT-SIZE="11" COLOR="#475569">PostgreSQL stays the system of record; every NoSQL store holds a purpose-built copy fed by change-data-capture (CDC) or is the owner of short-lived data.</FONT>>,
+         labelloc=t, fontsize=18];
+  node [fontname="Inter", fontsize=11, shape=box, style="rounded,filled", penwidth=0, margin="0.18,0.10"];
+  edge [fontname="Inter", fontsize=9, color="#64748b", fontcolor="#334155", penwidth=1.2];
+
+  subgraph cluster_apps { label=<<B>Applications</B>>; style="rounded,dashed"; color="#cbd5e1"; fontcolor="#334155";
+    rec [label="Reception\nbooking", fillcolor="#e2e8f0"];
+    ehr [label="Doctor EHR\nhistory + diagnosis", fillcolor="#e2e8f0"];
+    pha [label="Pharmacy", fillcolor="#e2e8f0"];
+    lab [label="Laboratory", fillcolor="#e2e8f0"];
+    ed  [label="Emergency Dept\ntriage board", fillcolor="#e2e8f0"];
+    por [label="Patient portal /\nFHIR API", fillcolor="#e2e8f0"];
+    mgt [label="Management\nanalytics", fillcolor="#e2e8f0"];
+    ward[label="Bedside monitors\n(future inpatient ward)", fillcolor="#e2e8f0"];
+  }
+  pg  [label="PostgreSQL 16\nSYSTEM OF RECORD\nACID · constraints · SSI", fillcolor="#1d4ed8", fontcolor="white", fontsize=12];
+  mg  [label="MongoDB 8\nencounter documents\n(read model)", fillcolor="#15803d", fontcolor="white"];
+  rd  [label="Redis 7\nslot holds · cache\nqueues · alert streams", fillcolor="#be123c", fontcolor="white"];
+  gr  [label="Graph DB (Kùzu / Neo4j)\ninteractions · contact tracing\nreferral network", fillcolor="#6d28d9", fontcolor="white"];
+  cs  [label="Cassandra 5\nvitals telemetry\n(wide-column, design)", fillcolor="#b45309", fontcolor="white"];
+  dk  [label="Parquet + DuckDB\ncolumnar analytics", fillcolor="#0f766e", fontcolor="white"];
+
+  rec -> rd [label="SET NX hold"]; rec -> pg [label="book (EXCLUDE)"];
+  ehr -> pg [label="diagnose (txn)"]; ehr -> rd [label="summary cache"];
+  pha -> pg; lab -> pg; lab -> rd [label="XADD critical"];
+  ed -> rd [label="ZADD / ZPOPMIN"];
+  por -> mg [label="GET /Encounter"];
+  mgt -> dk; mgt -> gr [label="graph questions"];
+  ward -> cs [label="17k writes/patient/day"];
+  pg -> mg [label="CDC", style=dashed]; pg -> gr [label="nightly sync", style=dashed];
+  pg -> dk [label="ETL to Parquet", style=dashed]; cs -> dk [label="aggregates", style=dashed];
+}

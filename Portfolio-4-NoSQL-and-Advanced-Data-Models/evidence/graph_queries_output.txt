@@ -1,0 +1,179 @@
+Graph loaded in 0.6 s
+  nodes  Patient           34,665
+  nodes  Doctor               200
+  nodes  Department            10
+  nodes  Condition             26
+  nodes  Medication            23
+  edges  WORKS_IN             200
+  edges  VISITED           59,496
+  edges  DIAGNOSED_WITH    76,619
+  edges  PRESCRIBED        70,357
+  edges  ALLERGIC_TO        1,732
+  edges  INTERACTS_WITH        14
+
+====================================================================================================
+G1  MEDICATION SAFETY - patients prescribed both drugs of a MAJOR interacting pair (Aug-Oct 2026)
+----------------------------------------------------------------------------------------------------
+MATCH (p:Patient)-[:PRESCRIBED]->(m1:Medication)-[i:INTERACTS_WITH]->(m2:Medication)<-[:PRESCRIBED]-(p)
+WHERE i.severity = 'Major'
+RETURN m1.name AS drug_1, m2.name AS drug_2, i.effect AS risk, count(DISTINCT p) AS patients
+ORDER BY patients DESC
+----------------------------------------------------------------------------------------------------
+drug_1     | drug_2      | risk                                                | patients
+-----------+-------------+-----------------------------------------------------+---------
+Lisinopril | Losartan    | Dual RAAS blockade: hyperkalaemia and kidney injury | 189     
+Sertraline | Sumatriptan | Risk of serotonin syndrome                          | 185     
+Warfarin   | Ibuprofen   | Increased bleeding risk (anticoagulant + NSAID)     | 163     
+(3 rows, 40.3 ms)
+
+====================================================================================================
+G1b One patient's interaction alerts (any severity), with when each drug was prescribed
+----------------------------------------------------------------------------------------------------
+MATCH (p:Patient)-[r1:PRESCRIBED]->(m1:Medication)-[i:INTERACTS_WITH]->(m2:Medication)<-[r2:PRESCRIBED]-(p)
+WITH p, count(i) AS alerts
+ORDER BY alerts DESC, p.id LIMIT 1
+MATCH (p)-[r1:PRESCRIBED]->(m1:Medication)-[i:INTERACTS_WITH]->(m2:Medication)<-[r2:PRESCRIBED]-(p)
+RETURN p.mrn AS mrn, p.name AS patient, m1.name AS drug_1, r1.day AS rx_1, m2.name AS drug_2, r2.day AS rx_2,
+       i.severity AS severity
+ORDER BY severity, rx_2
+----------------------------------------------------------------------------------------------------
+mrn        | patient     | drug_1     | rx_1       | drug_2        | rx_2       | severity
+-----------+-------------+------------+------------+---------------+------------+---------
+WCB0023383 | Priya Davis | Sertraline | 2026-10-16 | Sumatriptan   | 2026-08-20 | Major   
+WCB0023383 | Priya Davis | Sertraline | 2026-08-04 | Sumatriptan   | 2026-08-20 | Major   
+WCB0023383 | Priya Davis | Warfarin   | 2026-10-16 | Sertraline    | 2026-08-04 | Moderate
+WCB0023383 | Priya Davis | Warfarin   | 2026-08-04 | Sertraline    | 2026-08-04 | Moderate
+WCB0023383 | Priya Davis | Warfarin   | 2026-10-16 | Acetaminophen | 2026-08-20 | Moderate
+WCB0023383 | Priya Davis | Warfarin   | 2026-08-04 | Acetaminophen | 2026-08-20 | Moderate
+WCB0023383 | Priya Davis | Warfarin   | 2026-10-16 | Acetaminophen | 2026-09-03 | Moderate
+WCB0023383 | Priya Davis | Warfarin   | 2026-08-04 | Acetaminophen | 2026-09-03 | Moderate
+WCB0023383 | Priya Davis | Warfarin   | 2026-10-16 | Sertraline    | 2026-10-16 | Moderate
+WCB0023383 | Priya Davis | Warfarin   | 2026-08-04 | Sertraline    | 2026-10-16 | Moderate
+(10 rows, 153.9 ms)
+
+====================================================================================================
+G2  INFECTION CONTROL - contact tracing: who shared a clinic (same doctor, same day) with a COVID-19 patient?
+----------------------------------------------------------------------------------------------------
+MATCH (c:Patient)-[d:DIAGNOSED_WITH]->(:Condition {code: 'U07.1'}),
+      (c)-[v1:VISITED]->(doc:Doctor)<-[v2:VISITED]-(o:Patient)
+WHERE v1.appointment_id = d.appointment_id AND v2.day = v1.day AND o.id <> c.id
+RETURN count(DISTINCT c) AS covid_cases, count(DISTINCT o) AS exposed_patients, count(*) AS exposure_events
+----------------------------------------------------------------------------------------------------
+covid_cases | exposed_patients | exposure_events
+------------+------------------+----------------
+1940        | 6276             | 10320          
+(1 rows, 63.7 ms)
+
+====================================================================================================
+G2b Exposed patients who were themselves diagnosed with COVID-19 within 14 days (possible transmission)
+----------------------------------------------------------------------------------------------------
+MATCH (c:Patient)-[d:DIAGNOSED_WITH]->(cov:Condition {code: 'U07.1'}),
+      (c)-[v1:VISITED]->(doc:Doctor)<-[v2:VISITED]-(o:Patient)-[d2:DIAGNOSED_WITH]->(cov)
+WHERE v1.appointment_id = d.appointment_id AND v2.day = v1.day AND o.id <> c.id
+  AND d2.day > d.day AND d2.day <= d.day + INTERVAL('14 days')
+RETURN c.mrn AS index_case, d.day AS exposure_day, doc.name AS clinic_of, o.mrn AS contact, d2.day AS contact_diagnosed
+ORDER BY exposure_day
+----------------------------------------------------------------------------------------------------
+index_case | exposure_day | clinic_of          | contact    | contact_diagnosed
+-----------+--------------+--------------------+------------+------------------
+WCB0036928 | 2026-08-06   | Dr Avery Patel     | WCB0030533 | 2026-08-20       
+WCB0043104 | 2026-08-07   | Dr Arjun Novak     | WCB0015819 | 2026-08-21       
+WCB0043791 | 2026-08-11   | Dr Alex Baker      | WCB0005078 | 2026-08-24       
+WCB0049931 | 2026-08-11   | Dr Ibrahim Silva   | WCB0032998 | 2026-08-14       
+WCB0014946 | 2026-08-12   | Dr Taylor Foster   | WCB0044263 | 2026-08-21       
+WCB0008765 | 2026-08-12   | Dr Taylor Foster   | WCB0044263 | 2026-08-21       
+WCB0007616 | 2026-08-13   | Dr Naomi Fairbanks | WCB0000772 | 2026-08-14       
+WCB0018240 | 2026-08-13   | Dr Naomi Fairbanks | WCB0000772 | 2026-08-14       
+WCB0037326 | 2026-08-18   | Dr Mei Owens       | WCB0045216 | 2026-08-20       
+WCB0039144 | 2026-08-19   | Dr Mei Baker       | WCB0004595 | 2026-08-27       
+WCB0041156 | 2026-08-19   | Dr Mei Baker       | WCB0004595 | 2026-08-27       
+WCB0047231 | 2026-08-20   | Dr Morgan Khan     | WCB0001465 | 2026-08-25       
+(58 rows, 112.7 ms)
+
+====================================================================================================
+G3  CARE COORDINATION - doctor pairs who share the most patients (referral network)
+----------------------------------------------------------------------------------------------------
+MATCH (d1:Doctor)<-[:VISITED]-(p:Patient)-[:VISITED]->(d2:Doctor)
+WHERE d1.id < d2.id
+RETURN d1.name AS doctor_1, d1.specialty AS specialty_1, d2.name AS doctor_2, d2.specialty AS specialty_2,
+       count(DISTINCT p) AS shared_patients
+ORDER BY shared_patients DESC LIMIT 8
+----------------------------------------------------------------------------------------------------
+doctor_1           | specialty_1        | doctor_2           | specialty_2        | shared_patients
+-------------------+--------------------+--------------------+--------------------+----------------
+Dr Naomi Fairbanks | Emergency Medicine | Dr Morgan Evans    | Pediatrics         | 14             
+Dr Sofia Delgado   | Pediatrics         | Dr Naomi Fairbanks | Emergency Medicine | 12             
+Dr Naomi Fairbanks | Emergency Medicine | Dr Morgan Hughes   | Internal Medicine  | 11             
+Dr Naomi Fairbanks | Emergency Medicine | Dr Leah Morrison   | Dermatology        | 11             
+Dr Naomi Fairbanks | Emergency Medicine | Dr Jordan Ibekwe   | Family Medicine    | 11             
+Dr Naomi Fairbanks | Emergency Medicine | Dr Jamie Khan      | Cardiology         | 11             
+Dr Naomi Fairbanks | Emergency Medicine | Dr Quinn Johnson   | Pediatrics         | 11             
+Dr Naomi Fairbanks | Emergency Medicine | Dr Lucas Reyes     | Pediatrics         | 10             
+(8 rows, 136.1 ms)
+
+====================================================================================================
+G4  POPULATION HEALTH - comorbidity: conditions most often found in the same patient
+----------------------------------------------------------------------------------------------------
+MATCH (c1:Condition)<-[:DIAGNOSED_WITH]-(p:Patient)-[:DIAGNOSED_WITH]->(c2:Condition)
+WHERE c1.code < c2.code
+RETURN c1.code AS code_1, c1.description AS condition_1, c2.code AS code_2, c2.description AS condition_2,
+       count(DISTINCT p) AS patients
+ORDER BY patients DESC LIMIT 8
+----------------------------------------------------------------------------------------------------
+code_1 | condition_1                                    | code_2   | condition_2                                                      | patients
+-------+------------------------------------------------+----------+------------------------------------------------------------------+---------
+E78.5  | Hyperlipidemia, unspecified                    | I10      | Essential (primary) hypertension                                 | 1035    
+E11.9  | Type 2 diabetes mellitus without complications | E78.5    | Hyperlipidemia, unspecified                                      | 928     
+E66.9  | Obesity, unspecified                           | E78.5    | Hyperlipidemia, unspecified                                      | 912     
+E66.9  | Obesity, unspecified                           | I10      | Essential (primary) hypertension                                 | 847     
+E78.5  | Hyperlipidemia, unspecified                    | F41.1    | Generalized anxiety disorder                                     | 823     
+E11.9  | Type 2 diabetes mellitus without complications | I10      | Essential (primary) hypertension                                 | 767     
+F41.1  | Generalized anxiety disorder                   | I10      | Essential (primary) hypertension                                 | 728     
+E78.5  | Hyperlipidemia, unspecified                    | S93.401A | Sprain of unspecified ligament of right ankle, initial encounter | 724     
+(8 rows, 109.0 ms)
+
+====================================================================================================
+G5  VARIABLE-LENGTH PATHS - shortest chain of shared clinicians linking two patients
+----------------------------------------------------------------------------------------------------
+MATCH (a:Patient {mrn: 'WCB0000003'}), (b:Patient {mrn: 'WCB0000016'})
+MATCH (a)-[e:VISITED* SHORTEST 1..8]-(b)
+RETURN length(e) AS hops, a.name AS from_patient, properties(nodes(e), 'name') AS via, b.name AS to_patient
+----------------------------------------------------------------------------------------------------
+hops | from_patient   | via                                                   | to_patient
+-----+----------------+-------------------------------------------------------+-----------
+4    | Tyrone Jackson | ['Dr Priya Raman', 'Joseph Rossi', 'Dr Amara Okafor'] | Zara Ahmed
+(1 rows, 46.3 ms)
+
+====================================================================================================
+G6  SIMILAR PATIENTS - who shares the most conditions with Tyrone Jackson (WCB0000003)?
+----------------------------------------------------------------------------------------------------
+MATCH (t:Patient {mrn: 'WCB0000003'})-[:DIAGNOSED_WITH]->(c:Condition)<-[:DIAGNOSED_WITH]-(o:Patient)
+WHERE o.id <> t.id
+RETURN o.mrn AS patient, o.name AS name, collect(DISTINCT c.code) AS shared_conditions, count(DISTINCT c) AS n
+ORDER BY n DESC, patient LIMIT 6
+----------------------------------------------------------------------------------------------------
+patient    | name         | shared_conditions             | n
+-----------+--------------+-------------------------------+--
+WCB0009762 | Betty Scott  | ['R07.9', 'I48.91', 'I25.10'] | 3
+WCB0016449 | Wei Kowalski | ['R07.9', 'I48.91', 'I25.10'] | 3
+WCB0048461 | Robert Clark | ['R07.9', 'I48.91', 'I25.10'] | 3
+WCB0000110 | Sandra Hill  | ['I48.91', 'I25.10']          | 2
+WCB0000113 | Lucia Flores | ['R07.9', 'I25.10']           | 2
+WCB0000179 | Joseph Green | ['R07.9', 'I48.91']           | 2
+(6 rows, 31.4 ms)
+
+====================================================================================================
+Same contact-tracing question in SQL (PostgreSQL self-join on appointment):
+SELECT count(DISTINCT c.patient_id) AS covid_cases, count(DISTINCT o.patient_id) AS exposed_patients, count(*) AS exposure_events
+FROM clinic.diagnosis dx
+JOIN clinic.appointment c ON c.appointment_id = dx.appointment_id
+JOIN clinic.appointment o ON o.doctor_id = c.doctor_id
+     AND (o.scheduled_start AT TIME ZONE 'America/New_York')::date = (c.scheduled_start AT TIME ZONE 'America/New_York')::date
+     AND o.patient_id <> c.patient_id AND o.status = 'Completed'
+     AND o.scheduled_start >= '2026-08-01' AND o.scheduled_start < '2026-10-28'
+WHERE dx.icd10_code = 'U07.1' AND c.status = 'Completed'
+  AND c.scheduled_start >= '2026-08-01' AND c.scheduled_start < '2026-10-28'
+-> covid_cases=1940, exposed_patients=6276, exposure_events=10320  (251.7 ms)
+A variable-length path such as G5 needs a WITH RECURSIVE query in SQL that alternates patient and
+doctor joins and must track visited nodes to stop cycles - see shortest_path_recursive.sql.
+SQL WITH RECURSIVE breadth-first search (shortest_path_recursive.sql) -> hops = 4 (183.9 ms), distance only, no path.

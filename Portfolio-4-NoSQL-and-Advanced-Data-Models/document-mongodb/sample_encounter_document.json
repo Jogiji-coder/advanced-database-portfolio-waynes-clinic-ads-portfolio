@@ -1,0 +1,45 @@
+{
+  "_id": 30,
+  "patientId": 3,
+  "mrn": "WCB0000003",
+  "patientName": "Tyrone Jackson",
+  "doctor": {
+    "id": 4,
+    "name": "Dr Marcus Whitfield",
+    "specialty": "Cardiology",
+    "department": "Cardiology"
+  },
+  "start": "2026-10-21 13:45:00",
+  "end": "2026-10-21 14:30:00",
+  "status": "Completed",
+  "reason": "Anticoagulation (INR) check",
+  "bookedAt": "2026-10-12 13:45:00",
+  "diagnoses": [
+    {
+      "code": "I48.91",
+      "description": "Unspecified atrial fibrillation",
+      "type": "Primary",
+      "notes": "INR 2.1 - within therapeutic target of 2.0-3.0.",
+      "diagnosedAt": "2026-10-21 14:05:00"
+    }
+  ],
+  "prescriptions": [],
+  "labOrders": [
+    {
+      "labOrderId": 15,
+      "orderedAt": "2026-10-21 14:00:00",
+      "priority": "Routine",
+      "status": "Completed",
+      "results": [
+        {
+          "test": "INR",
+          "name": "Prothrombin time (INR)",
+          "value": 2.1,
+          "unit": "ratio",
+          "flag": "H",
+          "resultedAt": "2026-10-22 13:45:00"
+        }
+      ]
+    }
+  ]
+}

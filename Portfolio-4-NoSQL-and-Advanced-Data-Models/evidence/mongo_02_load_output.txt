@@ -1,0 +1,13 @@
+  doctors          200 documents in    0.0 s
+  patients      50,021 documents in    2.2 s
+  encounters   591,233 documents in   53.8 s
+{
+  "documents": {
+    "doctors": 200,
+    "patients": 50021,
+    "encounters": 591233
+  },
+  "dataSizeMB": 451.2,
+  "storageSizeMB": 127.4,
+  "avgEncounterBytes": 736
+}

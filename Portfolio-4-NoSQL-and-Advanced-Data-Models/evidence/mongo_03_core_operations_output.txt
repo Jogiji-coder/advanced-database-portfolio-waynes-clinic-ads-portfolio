@@ -1,0 +1,84 @@
+
+=== OPERATION 1: BOOK AN APPOINTMENT ==================================
+Booking Kevin Park (patient 19) with Dr Raman at 2026-11-04T14:00:00.000Z (09:00 Baltimore)
+-> inserted encounter _id 591716
+{
+  _id: 591716,
+  patientName: 'Kevin Park',
+  doctor: {
+    name: 'Dr Priya Raman'
+  },
+  start: ISODate('2026-11-04T14:00:00.000Z'),
+  end: ISODate('2026-11-04T14:30:00.000Z'),
+  status: 'Scheduled'
+}
+
+A second receptionist tries the SAME slot for Zara Ahmed (patient 16):
+-> REJECTED: code 11000 - E11000 duplicate key error on index ux_doctor_slot_live
+
+Limitation: the unique index only compares exact start times. Dr Whitfield (doctor 4) uses 45-minute
+slots; a booking starting 15 minutes into an existing one is NOT caught by the index:
+-> both inserted: 2 overlapping encounters for doctor 4. PostgreSQL's EXCLUDE constraint rejects this (Portfolio 1, test 16).
+
+=== OPERATION 2: STORE A DIAGNOSIS (multi-document ACID transaction) ==
+James Holloway (allergic to Penicillin V) checked in, encounter 591720
+Attempt 1 - diagnosis + penicillin in one transaction:
+-> ABORTED - Allergy conflict: patient allergic to Penicillin V Potassium (Severe)
+{
+  _id: 591720,
+  status: 'CheckedIn',
+  diagnoses: [],
+  prescriptions: []
+}
+Attempt 2 - same diagnosis with azithromycin:
+-> COMMITTED
+{
+  _id: 591720,
+  status: 'Completed',
+  diagnoses: [
+    {
+      code: 'J02.9'
+    }
+  ],
+  prescriptions: [
+    {
+      items: [
+        {
+          medication: 'Azithromycin'
+        }
+      ]
+    }
+  ]
+}
+audit rows for this encounter: 1
+
+=== OPERATION 3: RETRIEVE PATIENT HISTORY (explain before / after index) 
+Before index: stage=COLLSCAN  docsExamined=591235  keysExamined=0  returned=3  time=477 ms
+After index : stage=IXSCAN  docsExamined=3  keysExamined=3  returned=3  time=3 ms
+
+Tyrone Jackson's history - ONE indexed read, no joins (each encounter carries its clinical records):
+{"status":"Completed","date":"2026-10-21","doctor":"Dr Marcus Whitfield","diagnoses":["I48.91"],"medications":[],"labs":["INR=2.1 H"]}
+{"status":"Completed","date":"2026-10-07","doctor":"Dr Marcus Whitfield","diagnoses":["I48.91"],"medications":["Warfarin"],"labs":["INR=1 N"]}
+{"status":"Completed","date":"2026-09-02","doctor":"Dr Priya Raman","diagnoses":["I25.10","R07.9"],"medications":["Atorvastatin"],"labs":["CHOL=245 H","LDL=162 H","TROP=8 N"]}
+
+=== ANALYTICS: top 3 primary diagnoses per department, 2026 ($unwind/$group/$topN) 
+Cardiology                          I48.91 (4680), E78.5 (4416), R07.9 (4402)
+Dermatology                         L20.9 (11733)
+Emergency Medicine                  J06.9 (7087), R07.9 (7059), U07.1 (7055)
+Endocrinology                       E66.9 (2089), E03.9 (2050), E11.9 (2027)
+General Medicine                    Z00.00 (4973), E11.9 (4935), K21.9 (4934)
+Neurology                           R51.9 (5948), G43.909 (5933)
+Obstetrics and Gynecology           Z00.00 (5560), D64.9 (5440), N39.0 (5372)
+Orthopedics                         M54.50 (8245), S93.401A (8142)
+Pathology and Laboratory Medicine   D64.9 (107)
+Pediatrics                          L20.9 (3168), B34.9 (3157), Z23 (3120)
+aggregation time: 1101 ms
+
+=== SCHEMA VALIDATION: the document model still enforces rules ========
+-> REJECTED: code 121 (DocumentValidationFailure) - mrn regular expression did not match
+-> REJECTED: code 121 (DocumentValidationFailure) - diagnosis code fails the ICD-10 pattern
+
+=== COLLECTION STATS ==================================================
+doctors          200 docs  avg   849 bytes  indexes: _id_
+patients       50021 docs  avg   305 bytes  indexes: _id_, ux_mrn
+encounters    591235 docs  avg   736 bytes  indexes: _id_, ux_doctor_slot_live, ix_patient_start

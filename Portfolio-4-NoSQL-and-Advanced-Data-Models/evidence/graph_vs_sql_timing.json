@@ -1,0 +1,6 @@
+{
+  "G2_contact_tracing_graph_ms": 63.7,
+  "G5_shortest_path_graph_ms": 46.3,
+  "G2_contact_tracing_sql_ms": 251.7,
+  "G5_shortest_path_sql_recursive_ms": 183.9
+}

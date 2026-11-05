@@ -1,0 +1,10 @@
+{
+  "documents": {
+    "doctors": 200,
+    "patients": 50021,
+    "encounters": 591233
+  },
+  "dataSizeMB": 451.2,
+  "storageSizeMB": 127.4,
+  "avgEncounterBytes": 736
+}

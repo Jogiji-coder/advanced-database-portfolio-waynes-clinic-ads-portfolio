@@ -1,0 +1,162 @@
+
+==============================================================================
+R1  SLOT HOLD - a 5-minute lock while a receptionist completes a booking (SET NX EX)
+==============================================================================
+# Receptionist A opens the booking form for Dr Okafor's 09:00 slot:
+127.0.0.1:6379> SET slot:hold:doctor:1:2026-11-04T09:00 receptionist-A NX EX 300
+OK
+# Receptionist B opens the same slot a second later - NX refuses because the key exists:
+127.0.0.1:6379> SET slot:hold:doctor:1:2026-11-04T09:00 receptionist-B NX EX 300
+(nil)
+127.0.0.1:6379> GET slot:hold:doctor:1:2026-11-04T09:00
+"receptionist-A"
+127.0.0.1:6379> TTL slot:hold:doctor:1:2026-11-04T09:00
+(integer) 300
+# B is told 'slot being booked by another user'. A completes the booking in PostgreSQL
+# (the EXCLUDE constraint is still the final guard), then releases the hold - but only
+# if A still owns it. A Lua script makes check-and-delete atomic:
+127.0.0.1:6379> EVAL "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end" 1 slot:hold:doctor:1:2026-11-04T09:00 receptionist-B
+(integer) 0
+127.0.0.1:6379> EVAL "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end" 1 slot:hold:doctor:1:2026-11-04T09:00 receptionist-A
+(integer) 1
+127.0.0.1:6379> EXISTS slot:hold:doctor:1:2026-11-04T09:00
+(integer) 0
+# If A's browser crashes, the hold simply expires after 300 s - no stale lock remains.
+
+==============================================================================
+R2  CACHE-ASIDE - patient summary card read on every screen
+==============================================================================
+127.0.0.1:6379> GET patient:WCB0000001:summary
+(nil)
+# MISS -> read from PostgreSQL, then store as a hash with a 10-minute TTL:
+127.0.0.1:6379> HSET patient:WCB0000001:summary mrn WCB0000001 name "James Holloway" dob 1958-03-14 blood_group O+ allergies "Penicillin V Potassium (Severe)" problems "E11.9, I10, J02.9" last_visit 2026-10-25
+(integer) 7
+127.0.0.1:6379> EXPIRE patient:WCB0000001:summary 600
+(integer) 1
+127.0.0.1:6379> HGETALL patient:WCB0000001:summary
+1) "mrn"
+2) "WCB0000001"
+3) "name"
+4) "James Holloway"
+5) "dob"
+6) "1958-03-14"
+7) "blood_group"
+8) "O+"
+9) "allergies"
+10) "Penicillin V Potassium (Severe)"
+11) "problems"
+12) "E11.9, I10, J02.9"
+13) "last_visit"
+14) "2026-10-25"
+# When a doctor records a new allergy or diagnosis, the application deletes the key
+# (cache invalidation), so the next read repopulates it from the system of record.
+# Measured over 200 patients: PostgreSQL median 0.324 ms, Redis HGETALL median 0.151 ms (2x faster from cache)
+
+==============================================================================
+R3  EMERGENCY DEPARTMENT TRIAGE QUEUE (sorted set: priority, then arrival time)
+==============================================================================
+# score = triage_level * 10^10 + arrival epoch seconds  -> level 1 (resuscitation) always first
+127.0.0.1:6379> ZADD ed:queue 31793210520 WCB0000011|triage3|19:02
+(integer) 1
+127.0.0.1:6379> ZADD ed:queue 41793210700 WCB0000019|triage4|19:05
+(integer) 1
+127.0.0.1:6379> ZADD ed:queue 21793210820 WCB0000003|triage2|19:07
+(integer) 1
+127.0.0.1:6379> ZADD ed:queue 31793210940 WCB0000020|triage3|19:09
+(integer) 1
+127.0.0.1:6379> ZADD ed:queue 11793211120 WCB0000007|triage1|19:12
+(integer) 1
+127.0.0.1:6379> ZCARD ed:queue
+(integer) 5
+127.0.0.1:6379> ZRANGE ed:queue 0 -1
+1) "WCB0000007|triage1|19:12"
+2) "WCB0000003|triage2|19:07"
+3) "WCB0000011|triage3|19:02"
+4) "WCB0000020|triage3|19:09"
+5) "WCB0000019|triage4|19:05"
+# Next patient for the free cubicle (atomic pop - two nurses can never take the same patient):
+127.0.0.1:6379> ZPOPMIN ed:queue
+1) 1) "WCB0000007|triage1|19:12"
+   2) "11793211120.0"
+127.0.0.1:6379> ZPOPMIN ed:queue
+1) 1) "WCB0000003|triage2|19:07"
+   2) "21793210820.0"
+127.0.0.1:6379> ZRANGE ed:queue 0 -1
+1) "WCB0000011|triage3|19:02"
+2) "WCB0000020|triage3|19:09"
+3) "WCB0000019|triage4|19:05"
+
+==============================================================================
+R4  CRITICAL LAB ALERTS - Redis Streams with a consumer group
+==============================================================================
+127.0.0.1:6379> XGROUP CREATE lab:critical on-call-clinicians $ MKSTREAM
+OK
+# The laboratory system appends one entry per critical result:
+127.0.0.1:6379> XADD lab:critical * mrn WCB0013656 test TROP value 52.000 resulted_at "2026-10-28 19:09"
+"1793225809941-0"
+127.0.0.1:6379> XADD lab:critical * mrn WCB0028022 test TROP value 57.000 resulted_at "2026-10-28 16:58"
+"1793225809941-1"
+127.0.0.1:6379> XADD lab:critical * mrn WCB0009591 test TROP value 58.000 resulted_at "2026-10-28 13:41"
+"1793225809941-2"
+127.0.0.1:6379> XLEN lab:critical
+(integer) 3
+# Dr Fairbanks' pager app reads new alerts for its consumer:
+127.0.0.1:6379> XREADGROUP GROUP on-call-clinicians dr-fairbanks COUNT 2 STREAMS lab:critical >
+   1793225809941-0  mrn=WCB0013656  test=TROP  value=52.000  resulted_at=2026-10-28 19:09
+   1793225809941-1  mrn=WCB0028022  test=TROP  value=57.000  resulted_at=2026-10-28 16:58
+# One alert is acknowledged after the call-back; the other stays pending until handled:
+127.0.0.1:6379> XACK lab:critical on-call-clinicians 1793225809941-0
+(integer) 1
+127.0.0.1:6379> XPENDING lab:critical on-call-clinicians
+1) "pending"
+2) (integer) 1
+3) "min"
+4) "1793225809941-1"
+5) "max"
+6) "1793225809941-1"
+7) "consumers"
+8) 1) 1) "name"
+      2) "dr-fairbanks"
+      3) "pending"
+      4) (integer) 1
+# Unacknowledged alerts survive a consumer crash and can be re-assigned with XCLAIM.
+
+==============================================================================
+R5  REAL-TIME DASHBOARD COUNTERS (atomic INCR / HINCRBY)
+==============================================================================
+127.0.0.1:6379> HINCRBY stats:2026-10-28:checkins "General Medicine" 1
+(integer) 1
+127.0.0.1:6379> HINCRBY stats:2026-10-28:checkins "General Medicine" 1
+(integer) 2
+127.0.0.1:6379> HINCRBY stats:2026-10-28:checkins "Emergency Medicine" 1
+(integer) 1
+127.0.0.1:6379> INCR stats:2026-10-28:bookings
+(integer) 1
+127.0.0.1:6379> EXPIRE stats:2026-10-28:checkins 172800
+(integer) 1
+127.0.0.1:6379> HGETALL stats:2026-10-28:checkins
+1) "General Medicine"
+2) "2"
+3) "Emergency Medicine"
+4) "1"
+
+==============================================================================
+R6  DURABILITY SETTINGS - why Redis is a cache here, not the record
+==============================================================================
+127.0.0.1:6379> CONFIG GET appendonly
+1) "appendonly"
+2) "no"
+127.0.0.1:6379> CONFIG GET save
+1) "save"
+2) "3600 1 300 100 60 10000"
+# With appendonly=no, writes since the last RDB snapshot are lost on a crash. Acceptable for
+# holds, caches, counters and alerts (all re-creatable from PostgreSQL); NOT acceptable for
+# diagnoses or prescriptions. Production setting for the stream: appendonly yes + appendfsync everysec.
+127.0.0.1:6379> INFO keyspace
+1) "db0"
+2) 1) "keys"
+   2) (integer) 205
+   3) "expires"
+   4) (integer) 2
+   5) "avg_ttl"
+   6) (integer) 599897
