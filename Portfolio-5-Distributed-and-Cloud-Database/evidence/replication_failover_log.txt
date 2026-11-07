@@ -1,0 +1,65 @@
+
+================================================================================================
+D1  TOPOLOGY - one primary streaming WAL to a synchronous and an asynchronous standby
+================================================================================================
+   0.008s  [primary      ] pg_stat_replication: replica_async  state=streaming  sync_state=async  replay_gap=1690512 bytes replay_lag=00:00:02.564501
+   0.008s  [primary      ] pg_stat_replication: replica_sync   state=streaming  sync_state=sync   replay_gap=0 bytes replay_lag=-
+   0.013s  [replica_sync ] in_recovery=True  replayed_up_to=0/45C7A88  recovery_min_apply_delay=0 ms
+   0.022s  [replica_async] in_recovery=True  replayed_up_to=0/459A920  recovery_min_apply_delay=3000 ms
+
+================================================================================================
+D2  CONSISTENCY - is a write on the primary visible on each replica straight away?
+================================================================================================
+   0.048s  [primary      ] INSERT patient WCB0500001 committed with synchronous_commit = remote_apply
+   0.054s  [replica_sync ] immediately after COMMIT: rows found = 1  -> CONSISTENT (read-your-writes)
+   0.062s  [replica_async] immediately after COMMIT: rows found = 0  -> STALE READ
+   3.089s  [replica_async] row became visible after 3.04 s  -> EVENTUALLY CONSISTENT (3 s apply delay + replay)
+
+================================================================================================
+D3  READ-ONLY STANDBYS - replicas scale reads, never writes
+================================================================================================
+   3.093s  [replica_sync ] INSERT -> ERROR 25006: cannot execute INSERT in a read-only transaction
+   3.098s  [replica_sync ] SELECT count(*) FROM appointment -> 40  (reads are served)
+
+================================================================================================
+D4  THE PRICE OF CONSISTENCY - commit latency for each synchronous_commit level (300 commits each)
+================================================================================================
+   3.137s  [primary      ] off          median  0.093 ms  p95  0.152 ms   returns before WAL is flushed even locally (a crash can lose ~3x wal_writer_delay)
+   3.278s  [primary      ] local        median  0.413 ms  p95  0.656 ms   flushed to the primary's disk only
+   3.458s  [primary      ] remote_write median  0.528 ms  p95  0.783 ms   standby has received the WAL (in its OS cache)
+   3.663s  [primary      ] on           median  0.627 ms  p95  0.845 ms   standby has flushed the WAL to disk
+   3.906s  [primary      ] remote_apply median  0.743 ms  p95  0.951 ms   standby has applied it - visible to readers there
+
+================================================================================================
+D5  AVAILABILITY vs CONSISTENCY - the synchronous standby goes down
+================================================================================================
+   4.014s  [replica_sync ] server stopped (simulated host failure)
+   7.021s  [primary      ] after 3 s the COMMIT is still waiting: wait_event=IPC/SyncRep  -> the system chose CONSISTENCY over AVAILABILITY (it will not confirm a write only one copy holds)
+   7.021s  [primary      ] operator action: ALTER SYSTEM SET synchronous_standby_names = 'ANY 1 (replica_sync, replica_async)'; SELECT pg_reload_conf();
+   8.022s  [primary      ] the waiting COMMIT completed 4.01 s after it was issued - replica_async now satisfies the quorum (it confirms at its next status report: wal_receiver_status_interval = 1s)
+   9.645s  [primary      ] pg_stat_replication: replica_async  state=streaming  sync_state=quorum replay_gap=0 bytes replay_lag=-
+   9.645s  [primary      ] pg_stat_replication: replica_sync   state=streaming  sync_state=quorum replay_gap=0 bytes replay_lag=-
+
+================================================================================================
+D6  FAILOVER - the primary crashes; promote the synchronous replica
+================================================================================================
+   9.655s  [primary      ] repl_probe rows = 1602; last write committed with synchronous_commit = on
+   9.764s  [primary      ] CRASH (pg_ctl stop -m immediate: no checkpoint, connections dropped)
+   9.764s  [client       ] connection to :5433 refused -> failover triggered
+   9.873s  [replica_sync ] SELECT pg_promote() -> True
+   9.886s  [replica_sync ] NEW PRIMARY accepting writes 0.12 s after the crash; rows before crash = 1602, found on new primary = 1602 -> data lost = 0 (RPO = 0 thanks to synchronous replication)
+   9.892s  [replica_sync ] timeline = 2 (was 1), in_recovery = False
+   9.893s  [replica_async] re-point the surviving standby at the new primary (no rebuild needed):
+  12.812s  [new primary  ] pg_stat_replication: replica_async  state=streaming  sync_state=async  replay_gap=9832 bytes replay_lag=00:00:00.033664
+
+================================================================================================
+D7  REJOIN - pg_rewind turns the crashed old primary into a standby of the new one
+================================================================================================
+  13.488s  [pg_rewind    ] 78721/78721 kB (100%) copied
+  13.488s  [pg_rewind    ] pg_rewind: creating backup label and updating control file
+  13.488s  [pg_rewind    ] pg_rewind: syncing target data directory
+  13.488s  [pg_rewind    ] pg_rewind: Done!
+  13.628s  [old_primary  ] now in_recovery = True (rejoined as a standby in 0.8 s, no full re-copy)
+  13.634s  [new primary  ] pg_stat_replication: old_primary    state=streaming  sync_state=async  replay_gap=0 bytes replay_lag=00:00:00.001509
+  13.634s  [new primary  ] pg_stat_replication: replica_async  state=streaming  sync_state=async  replay_gap=0 bytes replay_lag=00:00:00.217027
+  17.166s  [all nodes    ] repl_probe rows: new primary=1603, old primary (standby)=1603, replica_async=1603 -> converged

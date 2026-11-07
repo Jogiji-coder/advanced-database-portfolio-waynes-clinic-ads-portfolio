@@ -1,0 +1,29 @@
+{
+  "async_replica_visibility_s": 3.04,
+  "commit_latency": {
+    "off": {
+      "median_ms": 0.093,
+      "p95_ms": 0.152
+    },
+    "local": {
+      "median_ms": 0.413,
+      "p95_ms": 0.656
+    },
+    "remote_write": {
+      "median_ms": 0.528,
+      "p95_ms": 0.783
+    },
+    "on": {
+      "median_ms": 0.627,
+      "p95_ms": 0.845
+    },
+    "remote_apply": {
+      "median_ms": 0.743,
+      "p95_ms": 0.951
+    }
+  },
+  "commit_blocked_during_sync_outage_s": 4.01,
+  "failover_time_to_first_write_s": 0.12,
+  "rows_lost_in_failover": 0,
+  "rejoin_with_pg_rewind_s": 0.8
+}

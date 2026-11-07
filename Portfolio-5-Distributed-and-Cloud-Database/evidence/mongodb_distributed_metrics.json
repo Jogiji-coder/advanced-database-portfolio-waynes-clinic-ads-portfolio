@@ -1,0 +1,28 @@
+{
+  "write_concern_latency": {
+    "w:1": {
+      "median_ms": 1.067,
+      "p95_ms": 3.221
+    },
+    "w:majority": {
+      "median_ms": 2.334,
+      "p95_ms": 3.312
+    }
+  },
+  "stale_secondary_reads_of_300": {
+    "plain": 264,
+    "causal_session": 0
+  },
+  "failover": {
+    "election_s": 10.93,
+    "write_pause_s": 10.83,
+    "acknowledged": 222,
+    "failed_attempts": 0,
+    "acknowledged_but_missing": 0
+  },
+  "sharded_distribution": {
+    "shA": 36867,
+    "shB": 37649
+  },
+  "routing": "SINGLE_SHARD for patientId filter, SHARD_MERGE across both shards for status filter"
+}

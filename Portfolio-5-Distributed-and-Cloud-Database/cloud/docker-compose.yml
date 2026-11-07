@@ -1,0 +1,63 @@
+# =====================================================================
+# Wayne's Clinic Baltimore - Portfolio 5 - local replication topology in containers
+#
+# STATUS: provided for reproduction on a laptop. Not executed in the build
+# environment (no access to a container registry); scripts/01_setup_pg_nodes.sh
+# builds the same topology natively and WAS executed - see ../evidence.
+#   docker compose up -d        then connect to localhost:5433 / 5434 / 5435
+# =====================================================================
+x-pg: &pg
+  image: postgres:16
+  environment:
+    POSTGRES_PASSWORD: clinic-demo-only        # demo only - use secrets in real deployments
+  restart: unless-stopped
+
+services:
+  pg-primary:
+    <<: *pg
+    environment:
+      POSTGRES_PASSWORD: clinic-demo-only
+      POSTGRES_DB: waynes_clinic
+    command: >
+      postgres -c wal_level=replica -c max_wal_senders=10 -c max_replication_slots=10
+               -c synchronous_standby_names='FIRST 1 (replica_sync)' -c synchronous_commit=on
+               -c wal_log_hints=on
+    ports: ["5433:5432"]
+    volumes:
+      - ./docker/primary-init.sql:/docker-entrypoint-initdb.d/00-replication.sql:ro
+      - ./docker/pg_hba_append.sh:/docker-entrypoint-initdb.d/01-hba.sh:ro
+      - ../../Portfolio-1-Database-Design-and-Modelling/sql/01_schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+      - ../../Portfolio-1-Database-Design-and-Modelling/sql/02_functions_triggers_views.sql:/docker-entrypoint-initdb.d/11-logic.sql:ro
+      - ../../Portfolio-1-Database-Design-and-Modelling/sql/03_seed_data.sql:/docker-entrypoint-initdb.d/12-seed.sql:ro
+      - primary-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 2s
+      retries: 30
+
+  pg-replica-sync:
+    <<: *pg
+    entrypoint: ["/bin/bash", "/replica-entrypoint.sh", "replica_sync", "slot_sync"]
+    environment:
+      PGPASSWORD: replicator-demo-only
+    depends_on: { pg-primary: { condition: service_healthy } }
+    ports: ["5434:5432"]
+    volumes:
+      - ./docker/replica-entrypoint.sh:/replica-entrypoint.sh:ro
+      - sync-data:/var/lib/postgresql/data
+
+  pg-replica-async:
+    <<: *pg
+    entrypoint: ["/bin/bash", "/replica-entrypoint.sh", "replica_async", "slot_async", "3s"]
+    environment:
+      PGPASSWORD: replicator-demo-only
+    depends_on: { pg-primary: { condition: service_healthy } }
+    ports: ["5435:5432"]
+    volumes:
+      - ./docker/replica-entrypoint.sh:/replica-entrypoint.sh:ro
+      - async-data:/var/lib/postgresql/data
+
+volumes:
+  primary-data:
+  sync-data:
+  async-data:

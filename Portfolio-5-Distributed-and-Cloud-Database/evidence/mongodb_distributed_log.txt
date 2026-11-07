@@ -1,0 +1,45 @@
+
+====================================================================================================
+M1  REPLICA SET - three members, automatic leader election (Raft-style protocol)
+====================================================================================================
+  18.214s  [rs.status] 127.0.0.1:27021  PRIMARY    health=1.0
+  18.214s  [rs.status] 127.0.0.1:27022  SECONDARY  health=1.0
+  18.214s  [rs.status] 127.0.0.1:27023  SECONDARY  health=1.0
+  18.639s  [client   ] insert with w:1         median 1.067 ms  p95 3.221 ms   acknowledged by the primary alone
+  19.354s  [client   ] insert with w:majority  median 2.334 ms  p95 3.312 ms   acknowledged once 2 of 3 members hold it (survives a failover)
+
+====================================================================================================
+M2  READ PREFERENCE - reading from secondaries scales reads but may be stale
+====================================================================================================
+  20.099s  [client   ] 300 x (write w:1 to primary, then read immediately from a SECONDARY): 264 reads were STALE
+  21.119s  [client   ] 300 x the same inside a CAUSALLY CONSISTENT session (w:majority, readConcern majority): 0 stale reads
+
+====================================================================================================
+M3  AUTOMATIC FAILOVER - kill -9 the primary while a receptionist app keeps booking
+====================================================================================================
+  23.133s  [chaos    ] SIGKILL primary 127.0.0.1:27021 (pid 9453)
+  37.069s  [rs       ] new primary elected: 127.0.0.1:27022  10.93 s after the kill
+  37.069s  [client   ] bookings acknowledged: 222; attempts that raised an error during the election: 0
+  37.069s  [client   ] longest pause in successful writes: 10.83 s (retryable writes re-sent the in-flight insert to the new primary)
+  37.069s  [check    ] acknowledged bookings missing after failover: 0  (w:majority => none can be rolled back)
+
+====================================================================================================
+M4  RECOVERY - the killed member restarts and rejoins as a secondary
+====================================================================================================
+  44.271s  [rs.status] 127.0.0.1:27021  SECONDARY  optime=2026-10-28 22:18:30
+  44.271s  [rs.status] 127.0.0.1:27022  PRIMARY    optime=2026-10-28 22:18:30
+  44.271s  [rs.status] 127.0.0.1:27023  SECONDARY  optime=2026-10-28 22:18:30
+
+====================================================================================================
+M5  SHARDED CLUSTER - config server + 2 shards + mongos router; hashed shard key on patientId
+====================================================================================================
+  48.841s  [mongos   ] sh.addShard(shA), sh.addShard(shB); sh.shardCollection('waynes_clinic.encounters', {patientId: 'hashed'})
+  50.702s  [mongos   ] inserted 74,516 encounter documents (Jul-Sep 2026) through the router in 1.0 s
+  50.744s  [shA      ]  36,867 documents (49.5 %)
+  50.776s  [shB      ]  37,649 documents (50.5 %)
+
+====================================================================================================
+M6  QUERY ROUTING - a patient's history hits ONE shard; a status report hits ALL shards
+====================================================================================================
+  50.778s  [mongos   ] history of one patient         filter={"patientId": 24687}  stage=SINGLE_SHARD  shards queried=['shA']  returned=3
+  50.810s  [mongos   ] all no-shows (no shard key)    filter={"status": "NoShow"}  stage=SHARD_MERGE  shards queried=['shB', 'shA']  returned=7485

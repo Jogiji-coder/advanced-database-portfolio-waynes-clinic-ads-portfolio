@@ -1,0 +1,6 @@
+>> primary :5433
+>> replicas :5434 (sync) and :5435 (async, 3 s apply delay) via pg_basebackup
+>> loading the Portfolio 1 clinic schema and sample data on the primary (replicates automatically)
+>> sharded group: coordinator :5440, shard1 :5441, shard2 :5442
+>> waiting for both standbys to replay the clinic data (replica_async applies WAL 3 s late)
+replication topology ready: replica_sync=sync, replica_async=async

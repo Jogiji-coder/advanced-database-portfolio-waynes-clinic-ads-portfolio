@@ -1,0 +1,93 @@
+
+====================================================================================================
+S1  BUILD - hash-partition appointment by patient_id across two shard servers
+====================================================================================================
+   0.069s  [shard:5441 ] database clinic_shard + table appointment_shard created
+   0.123s  [shard:5442 ] database clinic_shard + table appointment_shard created
+   0.185s  [coordinator] postgres_fdw servers shard1/shard2, partitioned table appointment (HASH patient_id, modulus 2)
+   2.923s  [coordinator] INSERT ... SELECT routed 295,501 2026 appointments to the shards in 2.7 s
+
+====================================================================================================
+S2  DISTRIBUTION - each shard holds about half of the rows; a patient lives on exactly one shard
+====================================================================================================
+   3.156s  [shard1     ]  147,943 appointments for 24,978 patients  (21 MB)
+   3.226s  [shard2     ]  147,558 appointments for 24,892 patients  (21 MB)
+   3.325s  [check      ] patients present on BOTH shards: 0  (co-location: a patient's history is never split)
+
+====================================================================================================
+S3  SINGLE-SHARD QUERY - partition pruning sends a patient's history to one shard only
+====================================================================================================
+   3.460s  [coordinator] SELECT appointment_id, scheduled_start, status FROM appointment WHERE patient_id = 3956 ORDER BY scheduled_start DESC
+   3.460s  [coordinator] Foreign Scan on public.appointment_s2 appointment
+                           Output: appointment.appointment_id, appointment.scheduled_start, appointment.status
+                           Remote SQL: SELECT appointment_id, scheduled_start, status FROM public.appointment_shard WHERE ((patient_id = 3956)) ORDER BY scheduled_start DESC NULLS FIRST
+   3.481s  [coordinator] median latency over 50 runs: 0.37 ms
+
+====================================================================================================
+S4  CROSS-SHARD QUERIES - scatter-gather, and when aggregation can be pushed to the shards
+====================================================================================================
+   3.489s  [coordinator] (a) GROUP BY a column that is NOT the shard key:
+   3.489s  [coordinator] SELECT status, count(*) FROM appointment GROUP BY status ORDER BY status
+   3.499s  [coordinator] Finalize GroupAggregate
+                           Output: appointment.status, count(*)
+                           Group Key: appointment.status
+                           ->  Sort
+                                 Output: appointment.status, (PARTIAL count(*))
+                                 Sort Key: appointment.status
+                                 ->  Append
+                                       ->  Partial HashAggregate
+                                             Output: appointment.status, PARTIAL count(*)
+                                             Group Key: appointment.status
+                                             ->  Foreign Scan on public.appointment_s1 appointment
+                                                   Output: appointment.status
+                                                   Remote SQL: SELECT status FROM public.appointment_shard
+                                       ->  Partial HashAggregate
+                                             Output: appointment_1.status, PARTIAL count(*)
+                                             Group Key: appointment_1.status
+                                             ->  Foreign Scan on public.appointment_s2 appointment_1
+                                                   Output: appointment_1.status
+                                                   Remote SQL: SELECT status FROM public.appointment_shard
+   3.661s  [coordinator] result: Cancelled=17,190, Completed=206,135, NoShow=24,184, Scheduled=47,992
+   5.327s  [coordinator] median 163.6 ms. Remote SQL is a bare 'SELECT status': every one of the 295,501 values crosses the network and is partially aggregated on the coordinator (postgres_fdw in PG16 cannot push a PARTIAL aggregate to a shard).
+   5.327s  [coordinator] (b) GROUP BY the shard key: each group lives on one shard, so the whole aggregate is pushed down:
+   5.327s  [coordinator] SELECT patient_id, count(*) AS visits FROM appointment GROUP BY patient_id HAVING count(*) >= 20 ORDER BY visits DESC, patient_id LIMIT 5
+   5.330s  [coordinator] Limit
+                           Output: appointment.patient_id, (count(*))
+                           ->  Sort
+                                 Output: appointment.patient_id, (count(*))
+                                 Sort Key: (count(*)) DESC, appointment.patient_id
+                                 ->  Append
+                                       ->  Async Foreign Scan
+                                             Output: appointment.patient_id, (count(*))
+                                             Relations: Aggregate on (public.appointment_s1 appointment)
+                                             Remote SQL: SELECT patient_id, count(*) FROM public.appointment_shard GROUP BY 1 HAVING ((count(*) >= 20))
+                                       ->  Async Foreign Scan
+                                             Output: appointment_1.patient_id, (count(*))
+                                             Relations: Aggregate on (public.appointment_s2 appointment_1)
+                                             Remote SQL: SELECT patient_id, count(*) FROM public.appointment_shard GROUP BY 1 HAVING ((count(*) >= 20))
+   5.404s  [coordinator] result: patient 31: 28, patient 24: 24, patient 26: 23, patient 53: 23, patient 33: 22
+   6.031s  [coordinator] median 61.2 ms. Remote SQL contains GROUP BY ... HAVING: the shards aggregate in parallel (Async Foreign Scan) and only the qualifying groups are returned. Lesson: choose the shard key to match the heaviest queries.
+
+====================================================================================================
+S5  ROUTED WRITE - the coordinator decides which shard stores a new booking
+====================================================================================================
+   6.044s  [coordinator] INSERT appointment for patient 900003 -> routed to partition appointment_s1
+   6.050s  [coordinator] INSERT appointment for patient 900001 -> routed to partition appointment_s2
+
+====================================================================================================
+S6  SHARD FAILURE - shard2 goes down
+====================================================================================================
+   6.160s  [shard2     ] server stopped
+   6.174s  [coordinator] history of patient 900003: OK (1 row) - their shard is up
+   6.175s  [coordinator] history of patient 900001: ERROR 08001 could not connect to server "shard2"
+   6.175s  [coordinator] clinic-wide count: ERROR 08001 could not connect to server "shard2"
+   6.176s  [analysis   ] Partial availability: patients on the healthy shard are served; anything touching shard2 fails.
+                         In production each shard is itself a primary + standby pair (D-series) so a node loss triggers failover, not an outage.
+   6.299s  [shard2     ] server restarted
+
+====================================================================================================
+S7  CROSS-SHARD TRANSACTIONS - postgres_fdw commits each shard separately (no two-phase commit)
+====================================================================================================
+   6.318s  [coordinator] UPDATE touching both shards committed: postgres_fdw opened a remote transaction on each shard and committed them
+                         one after the other. If a shard failed between the two remote COMMITs, one change would persist and the other
+                         would not. Citus and similar systems close this gap with two-phase commit (PREPARE TRANSACTION / COMMIT PREPARED).

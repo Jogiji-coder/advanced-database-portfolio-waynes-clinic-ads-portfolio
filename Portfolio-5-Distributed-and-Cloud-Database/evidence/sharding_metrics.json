@@ -1,0 +1,17 @@
+{
+  "rows_routed": 295501,
+  "load_seconds": 2.7,
+  "distribution": {
+    "shard1": {
+      "rows": 147943,
+      "patients": 24978
+    },
+    "shard2": {
+      "rows": 147558,
+      "patients": 24892
+    }
+  },
+  "single_shard_query_ms": 0.37,
+  "cross_shard_status_count_ms": 163.6,
+  "cross_shard_pushed_down_aggregate_ms": 61.2
+}
